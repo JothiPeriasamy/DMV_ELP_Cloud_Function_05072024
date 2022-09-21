@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,49 +15,57 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 
 import pandas as pd
 import numpy as np
-import tensorflow as tf
-from DMV_ELP_PreprocessTextClassification import PreprocessTextClassification
+from tensorflow import keras
+import pickle
+from google.cloud import storage
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import os
+
 
 
 
 def LSTM_Model_Result(vAR_input_text):
-    # Input Data Preprocessing
-    vAR_data = pd.DataFrame()
-    vAR_target_columns = ['Toxic','Severe Toxic','Obscene','Threat','Insult','Identity Hate']
-    vAR_model_obj = PreprocessTextClassification(vAR_data,vAR_target_columns)
-    vAR_test_data = pd.DataFrame([vAR_input_text],columns=['comment_text'])
-    vAR_test_data['Toxic'] = None
-    vAR_test_data['Severe Toxic'] = None
-    vAR_test_data['Obscene'] = None
-    vAR_test_data['Threat'] = None
-    vAR_test_data['Insult'] = None
-    vAR_test_data['Identity Hate'] = None
-    print('Xtest length - ',len(vAR_test_data))
-    vAR_corpus = vAR_model_obj.data_preprocessing(vAR_test_data)
-    print('Data Preprocessing Completed')
-    vAR_X,vAR_y = vAR_model_obj.word_embedding_vectorization(vAR_corpus,vAR_test_data)
-    print('Vectorization Completed Using Word Embedding')
-    print('var X - ',vAR_X)
-    print('var Y - ',vAR_y)
-    
-    vAR_load_model = tf.keras.models.load_model('gs://dmv_elp_project/saved_model/LSTM/LSTM_RNN_Model')
+    vAR_model = keras.models.load_model("gs://"+os.environ['GCS_BUCKET_NAME']+"/saved_model/LSTM/LSTM_RNN_Model_V2/LSTM_model_50k_Records")
 
-    vAR_model_result = vAR_load_model.predict(vAR_X)
+    MAX_SEQUENCE_LENGTH=200
+
+    vAR_gcs_client = storage.Client()
+    vAR_bucket = vAR_gcs_client.get_bucket(os.environ['GCS_BUCKET_NAME'])
+    blob = vAR_bucket.blob('saved_model/LSTM/LSTM_RNN_Model_V2/Tokenizer/tokenizer_50k.pickle')
+
+    with blob.open(mode='rb') as handle:
+        vAR_tokenizer = pickle.load(handle)
+
+    vAR_seq = vAR_tokenizer.texts_to_sequences([vAR_input_text])
+    vAR_padded = pad_sequences(vAR_seq, maxlen=MAX_SEQUENCE_LENGTH)
+    vAR_model_result = vAR_model.predict(vAR_padded)
+    vAR_target_columns = ["TOXIC","SEVERE_TOXIC","OBSCENE","THREAT","INSULT","IDENTITY_HATE"]
+
+
     print('LSTM result - ',vAR_model_result)
+    print('Max value in prediction - ',vAR_target_columns[np.argmax(vAR_model_result)])
+
+
     vAR_result_data = pd.DataFrame(vAR_model_result,columns=vAR_target_columns)
     vAR_target_sum = (np.sum(vAR_model_result)*100).round(2)
     vAR_result_data.index = pd.Index(['Percentage'],name='category')
     vAR_result_data = vAR_result_data.astype(float).round(5)*100
     
+    
 
-    # Sum of predicted value with 20% as threshold
-    if vAR_target_sum>20:
+    # If Highest probability more than 50%, then configuration is denied
+
+    vAR_max_prob = np.array(vAR_model_result).max()
+    print('arg max val - ',vAR_max_prob)
+
+    if (vAR_max_prob*100)>50:
         return False,vAR_result_data,vAR_target_sum
     else:
         return True,vAR_result_data,vAR_target_sum
+
+

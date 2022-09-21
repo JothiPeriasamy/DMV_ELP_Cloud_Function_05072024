@@ -119,10 +119,10 @@ def ELP_Validation(request):
                 vAR_result_data = vAR_result_data.to_json(orient='records')
                 if vAR_result_target_sum>20:
                     vAR_recommendation_level_3 = "Denied"
-                    vAR_reason_level_3 = "Since the profanity probability exceeds the threshold(sum of probability >20%)"
+                    vAR_reason_level_3 = "Since the highest profanity category probability exceeds the threshold value(50%)"
                 else:
                     vAR_recommendation_level_3 = "Accepted"
-                    vAR_reason_level_3 = "Since the profanity probability less than the threshold(sum of probability <20%)"
+                    vAR_reason_level_3 = "Since the highest profanity category probability below the threshold value(50%)"
                 vAR_response_time = round(time.time() - start_time,2)
 
                 return {"Direct Profanity":{"Is accepted":not vAR_profanity_result,"Message":vAR_message_level_1},
