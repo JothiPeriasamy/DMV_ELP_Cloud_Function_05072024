@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,11 +16,12 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 """
 
 from google.cloud import bigquery
-
+import os
 
 # Bigquery insert function needs to be implemented
 
@@ -29,11 +30,9 @@ from google.cloud import bigquery
 def GetLastRequestId():
     vAR_last_request_id = 0
     vAR_client = bigquery.Client()
+    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
     vAR_query_job = vAR_client.query(
-        """
-       select REQUEST_ID from(
-SELECT distinct REQUEST_ID,UPDATED_DT FROM `elp-2022-352222.DMV_ELP.DMV_ELP_MLOPS_RESPONSE` 
-order by UPDATED_DT desc limit 1)"""
+        " select REQUEST_ID from( SELECT distinct REQUEST_ID,UPDATED_DT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` order by UPDATED_DT desc limit 1)"
     )
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.

@@ -1,5 +1,6 @@
-# -*- coding: utf-8 -*-
 """
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -14,6 +15,8 @@ ________________________________________________________________________________
 Development Platform                | Developer       | Reviewer   | Release  | Version  | Date
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
 
 """
 
@@ -30,13 +33,13 @@ import os
 
 
 def LSTM_Model_Result(vAR_input_text):
-    vAR_model = keras.models.load_model("gs://"+os.environ['GCS_BUCKET_NAME']+"/saved_model/LSTM/LSTM_RNN_Model_V2/LSTM_model_50k_Records")
+    vAR_model = keras.models.load_model("gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["LSTM_MODEL_LOAD_PATH"])
 
     MAX_SEQUENCE_LENGTH=200
 
     vAR_gcs_client = storage.Client()
     vAR_bucket = vAR_gcs_client.get_bucket(os.environ['GCS_BUCKET_NAME'])
-    blob = vAR_bucket.blob('saved_model/LSTM/LSTM_RNN_Model_V2/Tokenizer/tokenizer_50k.pickle')
+    blob = vAR_bucket.blob(os.environ["LSTM_MODEL_LOAD_PATH"]+"/"+os.environ["LSTM_MODEL_TOKENIZER_FILE"])
 
     with blob.open(mode='rb') as handle:
         vAR_tokenizer = pickle.load(handle)

@@ -77,22 +77,8 @@ def build_model():
 
 def main():
     vAR_bq_client = bigquery.Client()
-    vAR_sql = """ (SELECT 
-COMMENT_TEXT,TOXIC,SEVERE_TOXIC,OBSCENE,THREAT,INSULT,IDENTITY_HATE
-FROM
-`elp-2022-352222.DMV_ELP.DMV_ELP_TOXIC_COMMENTS` WHERE 
-toxic='0' and severe_toxic='0' and obscene='0' and threat='0'
-and insult='0' and identity_hate='0' limit 250)
-union all
-(SELECT 
-COMMENT_TEXT,TOXIC,SEVERE_TOXIC,OBSCENE,THREAT,INSULT,IDENTITY_HATE
-FROM
-`elp-2022-352222.DMV_ELP.DMV_ELP_TOXIC_COMMENTS` WHERE 
-toxic='1' or severe_toxic='1' or obscene='1' or threat='1'
-or insult='1' or identity_hate='1' limit 250)
-
-order by COMMENT_TEXT
- """
+    vAR_table_name = "DMV_ELP_TOXIC_COMMENTS"
+    vAR_sql = "(SELECT COMMENT_TEXT,TOXIC,SEVERE_TOXIC,OBSCENE,THREAT,INSULT,IDENTITY_HATE FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+ " WHERE  toxic='0' and severe_toxic='0' and obscene='0' and threat='0' and insult='0' and identity_hate='0' limit 250) union all (SELECT  COMMENT_TEXT,TOXIC,SEVERE_TOXIC,OBSCENE,THREAT,INSULT,IDENTITY_HATE FROM `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+ " WHERE  toxic='1' or severe_toxic='1' or obscene='1' or threat='1' or insult='1' or identity_hate='1' limit 250) order by COMMENT_TEXT "
     vAR_df = vAR_bq_client.query(vAR_sql).to_dataframe()
     vAR_df = vAR_df.astype({"TOXIC": int, "SEVERE_TOXIC": int,"OBSCENE": int, "THREAT": int,"INSULT": int, "IDENTITY_HATE": int})
     print(vAR_df.head())
@@ -106,7 +92,7 @@ order by COMMENT_TEXT
     
     vAR_gcs_client = storage.Client()
     vAR_bucket = vAR_gcs_client.get_bucket() # add Project id
-    blob = vAR_bucket.blob('saved_model/LSTM/LSTM_RNN_Model_V3/tokenizer.pickle')
+    blob = vAR_bucket.blob(os.environ["LSTM_MODEL_LOAD_PATH"]+"/"+os.environ["LSTM_MODEL_TOKENIZER_FILE"])
     with blob.open(mode= 'wb') as handle:
         pickle.dump(vAR_tokenizer, handle, protocol=pickle.HIGHEST_PROTOCOL)
 

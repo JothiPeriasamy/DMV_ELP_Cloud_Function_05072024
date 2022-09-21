@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,7 +16,8 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 """
 
 import pandas as pd
@@ -117,7 +118,7 @@ def ELP_Validation(request):
                 
                 vAR_result,vAR_result_data,vAR_result_target_sum = LSTM_Model_Result(vAR_input_text)
                 vAR_result_data = vAR_result_data.to_json(orient='records')
-                if vAR_result_target_sum>20:
+                if not vAR_result:
                     vAR_recommendation_level_3 = "Denied"
                     vAR_reason_level_3 = "Since the highest profanity category probability exceeds the threshold value(50%)"
                 else:

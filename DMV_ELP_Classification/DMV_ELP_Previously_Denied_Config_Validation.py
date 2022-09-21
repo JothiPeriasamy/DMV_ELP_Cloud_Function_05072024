@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,12 +16,13 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 """
 
 import pandas as pd
 from google.cloud import bigquery
-
+import os
 
 
 def Previously_Denied_Configuration_Validation(input_text):
@@ -33,16 +34,14 @@ def Previously_Denied_Configuration_Validation(input_text):
             return True,"Denied - "+vAR_row['DENIAL_REASON']
         else:
             return False,'Given configuration is not found in DMV Previously Denied Configuration list'
-
     
-
+    
+    
 def Read_Previously_Denied_Configuration_Table():
 
     vAR_bqclient = bigquery.Client()
-
-    vAR_query_string = """
-    SELECT PREVIOUSLY_DENIED_CONFIG,DENIAL_REASON FROM `elp-2022-352222.DMV_ELP.DMV_ELP_PREVIOUSLY_DENIED_CONFIGURATION`
-    """
+    vAR_table_name = "DMV_ELP_PREVIOUSLY_DENIED_CONFIGURATION"
+    vAR_query_string = " SELECT PREVIOUSLY_DENIED_CONFIG,DENIAL_REASON FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` """
 
     vAR_dataframe = (
         vAR_bqclient.query(vAR_query_string)

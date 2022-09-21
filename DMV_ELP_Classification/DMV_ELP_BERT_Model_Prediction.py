@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
 
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
@@ -17,7 +16,8 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 """
 
 import pandas as pd
@@ -31,6 +31,7 @@ import json
 import gcsfs
 import h5py
 import traceback
+import os
 
 def BERT_Model_Result(vAR_input_text):
     
@@ -63,7 +64,7 @@ def BERT_Model_Result(vAR_input_text):
     verbose = True)
     start_time = time.time()
      
-    MODEL_PATH = 'gs://dmv_elp_project/saved_model/BERT/model.h5'
+    MODEL_PATH = "gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"] +"/model.h5"
     FS = gcsfs.GCSFileSystem()
     with FS.open(MODEL_PATH, 'rb') as model_file:
          model_gcs = h5py.File(model_file, 'r')

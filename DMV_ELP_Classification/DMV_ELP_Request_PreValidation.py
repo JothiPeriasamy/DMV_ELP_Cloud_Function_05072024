@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,12 +16,14 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 """
 
 from google.cloud import bigquery
 import pandas as pd
 import datetime
+import os
 
 def Pre_Request_Validation(request_json):
     vAR_error_message = ""
@@ -48,7 +50,8 @@ def Pre_Request_Validation(request_json):
 def CheckIfConfigAlreadyProcessed(vAR_config):
     vAR_client = bigquery.Client()
     vAR_processed_config = ''
-    vAR_query = "select CONFIGURATION from `elp-2022-352222.DMV_ELP.DMV_ELP_MLOPS_RESPONSE` where CONFIGURATION='"+vAR_config+"'"+" and date(created_dt)= current_date() group by CONFIGURATION having count(CONFIGURATION)>1"
+    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
+    vAR_query = "select CONFIGURATION from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` where CONFIGURATION='"+vAR_config+"'"+" and date(created_dt)= current_date() group by CONFIGURATION having count(CONFIGURATION)>1"
     vAR_query_job = vAR_client.query(vAR_query)
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.

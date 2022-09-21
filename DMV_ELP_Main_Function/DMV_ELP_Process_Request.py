@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,7 +16,8 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 """
 
 import datetime
@@ -56,4 +57,4 @@ def Process_ELP_Request(vAR_batch_elp_configuration,elp_idx,vAR_request_url,vAR_
    # Adding Process time for file object to write, since we can't directly use file object in parallel processing(later this column can be removed)
    vAR_response_dict["Process Time"] = '{}\t\t\t{}\t\t\t{}\t\t{}\n'.format(elp_idx,vAR_request_start_time,vAR_request_end_time,vAR_each_request_time)
    return vAR_response_dict
-
+   

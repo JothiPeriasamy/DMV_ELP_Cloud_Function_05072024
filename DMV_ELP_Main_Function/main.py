@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,7 +15,7 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 import pandas as pd
@@ -45,6 +44,9 @@ from DMV_ELP_Response_To_GCS import Upload_Response_GCS
 from DMV_ELP_Response_To_S3 import Upload_Response_To_S3
 
 def Process_ELP_Orders(request):
+
+   vAR_process_start_time = datetime.datetime.now().replace(microsecond=0)
+   vAR_timeout_start = time.time()
    
    vAR_gcs_client = storage.Client()
    vAR_bucket = vAR_gcs_client.get_bucket(os.environ['GCS_BUCKET_NAME'])
@@ -54,12 +56,9 @@ def Process_ELP_Orders(request):
    
    with blob.open(mode='w') as f:
       try:
-         vAR_process_start_time = datetime.datetime.now().replace(microsecond=0)
-         vAR_timeout_start = time.time()
-         vAR_request_json = request.get_json(silent=True)
-         vAR_s3_url = vAR_request_json['S3_URL']
-         vAR_s3_url_copy = vAR_s3_url.replace('.csv','').replace('s3://','').replace('/','')
          
+         vAR_request_json = request.get_json(silent=True)
+         vAR_s3_url = "s3://"+os.environ["S3_BUCKET_NAME"]+"/"+os.environ["AWS_REQUEST_PATH"]+"/"+vAR_request_json["S3_REQUEST_FILE_NAME"]         
          vAR_timeout_secs = 900
          pool = mp.Pool(mp.cpu_count())
          if vAR_s3_url.startswith('s3'):
@@ -103,9 +102,7 @@ def Process_ELP_Orders(request):
                   if len(vAR_result.get()['ERROR_MESSAGE'])>0:
                      InsertErrorLog(vAR_result.get())
                      vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
-                     print('result err - ',vAR_result.get())
-                     print('result type err - ',type(vAR_result.get()))
-                     print('result appended err - ',vAR_output)
+                     
                   else:
                      print(vAR_result.get()["Process Time"])
                      f.write(vAR_result.get()["Process Time"])
@@ -117,9 +114,7 @@ def Process_ELP_Orders(request):
                      print(vAR_result.get()['CONFIGURATION']+' delete from request table')
                      vAR_processed_configs.append(vAR_result.get()['CONFIGURATION'])
                      vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
-                     print('result - ',vAR_result.get())
-                     print('result type - ',type(vAR_result.get()))
-                     print('result appended - ',vAR_output)
+                     
                else:
                   
                   raise TimeoutError('Timeout Error inside result iteration')

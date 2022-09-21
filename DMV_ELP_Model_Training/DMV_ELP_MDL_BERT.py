@@ -39,14 +39,13 @@ import tensorflow as tf
 import re
 import numpy as np
 from sklearn.model_selection import train_test_split
-
+import os
 
 
 def read_bq_data():
     vAR_bqclient = bigquery.Client()
-    vAR_query_string = """
-        select * from `elp-2022-352222.DMV_ELP_DATASET.DMV_TOXIC_COMMENTS`
-        """
+    vAR_table_name = "DMV_ELP_TOXIC_COMMENTS"
+    vAR_query_string = "select * from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"
     vAR_dataframe = (
             vAR_bqclient.query(vAR_query_string)
             .result()
@@ -145,7 +144,8 @@ try:
     epochs=1)
     print('Model training completed-------------------------------')
     print('Model Accuracy - ',history.history)
-    model.save('/home/jupyter/BERT_MODEL_64B_4e5LR_3E_Test/')
+    # Below path should be cloud storage path
+    model.save('BERT_MODEL_64B_4e5LR_3E_Test')
     print('Model saved successfully--------------------------------')
 
 except Exception as e:

@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,13 +16,14 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 """
 
 import re
 import pandas as pd
 from google.cloud import bigquery
-
+import os
 
 
 def Pattern_Denial(input_text):
@@ -46,17 +47,16 @@ def Pattern_Denial(input_text):
             return False,vAR_pattern
         
     return True,vAR_pattern
-
     
-
+    
+    
 def Read_Bigquery_Data():
 
     vAR_bqclient = bigquery.Client()
 
     # Download query results.
-    vAR_query_string = """
-    SELECT * FROM `elp-2022-352222.DMV_ELP.DMV_ELP_DENIED_PATTERN`
-    """
+    vAR_table_name = "DMV_ELP_DENIED_PATTERN"
+    vAR_query_string = "SELECT * FROM "+"`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"
 
     vAR_dataframe = (
         vAR_bqclient.query(vAR_query_string)

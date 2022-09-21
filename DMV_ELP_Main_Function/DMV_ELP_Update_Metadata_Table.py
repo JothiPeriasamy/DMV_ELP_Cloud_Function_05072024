@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,31 +16,30 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 from google.cloud import bigquery
+import os
 
 def UpdateMetadataTable():
    vAR_num_of_updated_row =0
    vAR_client = bigquery.Client(project='elp-2022-352222')
+   vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
 
-   vAR_query_list = ["""UPDATE `DMV_ELP.DMV_ELP_REQUEST_RESPONSE_METADATA` SET RUN1 ='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 is NULL AND RUN2 is NULL AND RUN3 is NULL AND
-RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)=current_date()""",
 
-"""UPDATE `DMV_ELP.DMV_ELP_REQUEST_RESPONSE_METADATA` SET RUN1 ='COMPLETE', RUN2='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='IN PROGRESS' AND RUN2 is NULL AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)=current_date()""",
 
-"""UPDATE `DMV_ELP.DMV_ELP_REQUEST_RESPONSE_METADATA` SET RUN2 ='COMPLETE', RUN3='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER'  WHERE RUN1='COMPLETE' AND RUN2 ='IN PROGRESS' AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)=current_date()""",
+   vAR_query_list = ["UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN1 ='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 is NULL AND RUN2 is NULL AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)=current_date()",
 
-"""UPDATE `DMV_ELP.DMV_ELP_REQUEST_RESPONSE_METADATA` SET RUN3 ='COMPLETE', RUN4='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1='COMPLETE' AND RUN2 ='COMPLETE' AND RUN3 ='IN PROGRESS' AND RUN4 is NULL AND RUN5 is NULL and
-date(CREATED_DT)=current_date()""",
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN1 ='COMPLETE', RUN2='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='IN PROGRESS' AND RUN2 is NULL AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)=current_date()",
 
-"""UPDATE `DMV_ELP.DMV_ELP_REQUEST_RESPONSE_METADATA` SET RUN4 ='COMPLETE', RUN5='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE
-RUN1 ='COMPLETE' AND RUN2 ='COMPLETE' AND RUN3 ='COMPLETE' AND RUN4= 'IN PROGRESS' AND RUN5 is NULL and date(CREATED_DT)=current_date()""",
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN2 ='COMPLETE', RUN3='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER'  WHERE RUN1='COMPLETE' AND RUN2 ='IN PROGRESS' AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)=current_date()",
 
-"""UPDATE `DMV_ELP.DMV_ELP_REQUEST_RESPONSE_METADATA` SET RUN5 ='COMPLETE',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE' 
-AND RUN2 ='COMPLETE' AND RUN3 ='COMPLETE' AND RUN4 = 'COMPLETE' AND RUN5 ='IN PROGRESS'
-and date(CREATED_DT)=current_date()"""]
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN3 ='COMPLETE', RUN4='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1='COMPLETE' AND RUN2 ='COMPLETE' AND RUN3 ='IN PROGRESS' AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)=current_date()",
+
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN4 ='COMPLETE', RUN5='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE' AND RUN2 ='COMPLETE' AND RUN3 ='COMPLETE' AND RUN4= 'IN PROGRESS' AND RUN5 is NULL and date(CREATED_DT)=current_date()",
+
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN5 ='COMPLETE',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE'  AND RUN2 ='COMPLETE' AND RUN3 ='COMPLETE' AND RUN4 = 'COMPLETE' AND RUN5 ='IN PROGRESS' and date(CREATED_DT)=current_date()"]
 
    for query in vAR_query_list:
 

@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,7 +16,7 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 
@@ -31,7 +31,7 @@ def Upload_Request_GCS(vAR_request):
     vAR_utc_time = datetime.datetime.utcnow()
     client = storage.Client()
     bucket = client.get_bucket(vAR_bucket_name)
-    vAR_file_path = 'requests/'+vAR_utc_time.strftime('%Y%m%d')+'/dmv_api_request_'+vAR_utc_time.strftime('%H%M%S')+'.csv'
+    vAR_file_path = os.environ["GCP_REQUEST_PATH"]+'/'+vAR_utc_time.strftime('%Y%m%d')+'/'+vAR_utc_time.strftime('%H%M%S')+'.csv'
     bucket.blob(vAR_file_path).upload_from_string(vAR_request, 'text/csv')
     print('ELP Configuration Request successfully saved into cloud storage')
     print('Path - ',vAR_file_path)

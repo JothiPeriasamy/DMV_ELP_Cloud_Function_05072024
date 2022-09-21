@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,7 +16,7 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 def Process_API_Response(vAR_api_response):    
@@ -48,12 +48,12 @@ def Process_API_Response(vAR_api_response):
 
       if 'Model Prediction'  in vAR_api_response:
          vAR_data['MODEL'] = 'RNN'
-         vAR_data['TOXIC'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['Toxic']
-         vAR_data['SEVERE_TOXIC'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['Severe Toxic']
-         vAR_data['OBSCENE'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['Obscene']
-         vAR_data['IDENTITY_HATE'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['Identity Hate']
-         vAR_data['INSULT'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['Insult']
-         vAR_data['THREAT'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['Threat']
+         vAR_data['TOXIC'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['TOXIC']
+         vAR_data['SEVERE_TOXIC'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['SEVERE_TOXIC']
+         vAR_data['OBSCENE'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['OBSCENE']
+         vAR_data['IDENTITY_HATE'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['IDENTITY_HATE']
+         vAR_data['INSULT'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['INSULT']
+         vAR_data['THREAT'] = vAR_api_response['Model Prediction']['Profanity Classification'][0]['THREAT']
          vAR_data['OVERALL_SCORE'] = vAR_api_response['Model Prediction']['Sum of all Categories']
          vAR_data['RECOMMENDATION'] = vAR_api_response['Model Prediction']['Recommendation']
          vAR_data['REASON'] = vAR_api_response['Model Prediction']['Reason']

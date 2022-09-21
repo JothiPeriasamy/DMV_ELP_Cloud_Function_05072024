@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -16,12 +16,13 @@ Development Platform                | Developer       | Reviewer   | Release  | 
 ____________________________________|_________________|____________|__________|__________|__________________
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
--------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 
 import datetime
 from google.cloud import bigquery
+import os
 
 def Insert_Response_to_Bigquery(vAR_df):
     created_at = []
@@ -39,10 +40,10 @@ def Insert_Response_to_Bigquery(vAR_df):
     vAR_df['UPDATED_USER'] = updated_by
 
     # Load client
-    client = bigquery.Client(project='elp-2022-352222')
+    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
 
     # Define table name, in format dataset.table_name
-    table = 'DMV_ELP.DMV_ELP_MLOPS_RESPONSE'
+    table = os.environ["GCP_BQ_SCHEMA_NAME"]+'.DMV_ELP_MLOPS_RESPONSE'
     job_config = bigquery.LoadJobConfig(autodetect=True,schema=[
 # Specify the type of columns whose type cannot be auto-detected. For
 # data type is ambiguous.
@@ -61,6 +62,7 @@ def Insert_Response_to_Bigquery(vAR_df):
 
     job.result()  # Wait for the job to complete.
     table_id = 'elp-2022-352222.DMV_ELP.DMV_ELP_MLOPS_RESPONSE'
+    table_id = os.environ["GCP_PROJECT_ID"]+'.'+table
     table = client.get_table(table_id)  # Make an API request.
     print(
             "Loaded {} rows and {} columns to {}".format(
