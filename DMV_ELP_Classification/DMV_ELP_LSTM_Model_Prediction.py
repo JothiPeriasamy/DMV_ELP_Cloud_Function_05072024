@@ -57,7 +57,10 @@ def LSTM_Model_Result(vAR_input_text):
     vAR_result_data = pd.DataFrame(vAR_model_result,columns=vAR_target_columns)
     vAR_target_sum = (np.sum(vAR_model_result)*100).round(2)
     vAR_result_data.index = pd.Index(['Percentage'],name='category')
+
+    print('vAR_result_data before - ',vAR_result_data)
     vAR_result_data = vAR_result_data.astype(float).round(5)*100
+    print('vAR_result_data after - ',vAR_result_data)
     
     
 

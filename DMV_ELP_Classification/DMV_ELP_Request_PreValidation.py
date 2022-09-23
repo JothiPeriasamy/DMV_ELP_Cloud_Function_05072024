@@ -44,6 +44,8 @@ def Pre_Request_Validation(request_json):
 
     if len(CheckIfConfigAlreadyProcessed(request_json['CONFIGURATION']))>0:
         vAR_error_message = vAR_error_message+"### Configuration skipped(Already processed)"
+
+    
     return {"Error Message":vAR_error_message}
 
 

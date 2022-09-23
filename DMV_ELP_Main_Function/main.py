@@ -47,6 +47,7 @@ def Process_ELP_Orders(request):
 
    vAR_process_start_time = datetime.datetime.now().replace(microsecond=0)
    vAR_timeout_start = time.time()
+   vAR_last_processed_record = ''
    
    vAR_gcs_client = storage.Client()
    vAR_bucket = vAR_gcs_client.get_bucket(os.environ['GCS_BUCKET_NAME'])
@@ -58,7 +59,7 @@ def Process_ELP_Orders(request):
       try:
          
          vAR_request_json = request.get_json(silent=True)
-         vAR_s3_url = "s3://"+os.environ["S3_BUCKET_NAME"]+"/"+os.environ["AWS_REQUEST_PATH"]+"/"+vAR_request_json["S3_REQUEST_FILE_NAME"]         
+         vAR_s3_url = "s3://"+os.environ["S3_BUCKET_NAME"]+"/"+os.environ["AWS_REQUEST_PATH"]
          vAR_timeout_secs = 900
          pool = mp.Pool(mp.cpu_count())
          if vAR_s3_url.startswith('s3'):
@@ -74,13 +75,13 @@ def Process_ELP_Orders(request):
             if vAR_current_date_request_count==0:
                Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configuration)
                InsertRequesResponseMetaData(vAR_number_of_configuration)
+               Upload_Request_GCS(vAR_batch_elp_configuration)
+               print('Request file successfully uploaded into gcs bucket')
+
+
             
             UpdateMetadataTable()
 
-
-            Upload_Request_GCS(vAR_batch_elp_configuration)
-
-            print('Request file successfully uploaded into gcs bucket')
 
             
 
@@ -102,6 +103,7 @@ def Process_ELP_Orders(request):
                   if len(vAR_result.get()['ERROR_MESSAGE'])>0:
                      InsertErrorLog(vAR_result.get())
                      vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
+                     vAR_last_processed_record = vAR_result.get()['CONFIGURATION']
                      
                   else:
                      print(vAR_result.get()["Process Time"])
@@ -114,9 +116,9 @@ def Process_ELP_Orders(request):
                      print(vAR_result.get()['CONFIGURATION']+' delete from request table')
                      vAR_processed_configs.append(vAR_result.get()['CONFIGURATION'])
                      vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
+                     vAR_last_processed_record = vAR_result.get()['CONFIGURATION']
                      
                else:
-                  
                   raise TimeoutError('Timeout Error inside result iteration')
                
                
@@ -127,14 +129,7 @@ def Process_ELP_Orders(request):
             # postpones the execution of next line of code until all processes in the queue are done.
             pool.join()  
 
-            vAR_output_copy = vAR_output.copy(deep=True)
-            vAR_output = vAR_output.to_csv()
             
-            # Upload response to GCS bucket
-            Upload_Response_GCS(vAR_output)
-
-            # Upload response to S3 bucket
-            Upload_Response_To_S3(vAR_output_copy)
 
 
             vAR_process_end_time = datetime.datetime.now().replace(microsecond=0)
@@ -151,6 +146,15 @@ def Process_ELP_Orders(request):
 
       except TimeoutError as timeout:
          print('TIMEOUTERR - Custom Timeout Error')
+         vAR_output_copy = vAR_output.copy(deep=True)
+         vAR_output = vAR_output.to_csv()
+         
+         # Upload response to GCS bucket
+         Upload_Response_GCS(vAR_output)
+
+         # Upload response to S3 bucket
+         Upload_Response_To_S3(vAR_output_copy)
+
          vAR_process_end_time = datetime.datetime.now().replace(microsecond=0)
          vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
          f.write('\n\nEnd Time - {}\nTotal Processing Time - {}'.format(vAR_process_end_time,vAR_total_processing_time))
@@ -160,12 +164,16 @@ def Process_ELP_Orders(request):
          # pool.terminate()
          # print('Pool terminated')
          print('Number of Processed configs - ',len(vAR_processed_configs))
+
+         
+
          return {'Error Message':'### Custom Timeout Error Occured'}
 
       except ConnectionError as connectionerror:
          print('HTTPCONNECTIONERR - Http connection error occurred')
          print('Error Traceback - '+str(traceback.print_exc()))
          print('Number of Processed configs - ',len(vAR_processed_configs))
+         
          return {'Error Message':'### ConnectionError Occured'}
       
       except BaseException as e:
@@ -175,6 +183,7 @@ def Process_ELP_Orders(request):
          vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
          f.write('\n\nEnd Time - {}\nTotal Processing Time - {}'.format(vAR_process_end_time,vAR_total_processing_time))
          print('Number of Processed configs - ',len(vAR_processed_configs))
+         
          return {'Error Message':'### '+str(e)}
 
       

@@ -45,7 +45,7 @@ def ReadNotProcessedRequestData():
     vAR_request_table_name = "DMV_ELP_REQUEST"
     vAR_response_table_name = "DMV_ELP_MLOPS_RESPONSE"
     vAR_sql =(
-        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table_name+"`"+" where CONFIGURATION not in (select CONFIGURATION from `" +os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table_name+"`"+" where date(created_dt) = current_date())"
+        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table_name+"`"+" where CONFIGURATION not in (select CONFIGURATION from `" +os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table_name+"`"+" where date(created_dt) = current_date()) and date(created_dt)=current_date()"
     )
 
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()
