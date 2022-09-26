@@ -44,8 +44,7 @@ import os
 
 def read_bq_data():
     vAR_bqclient = bigquery.Client()
-    vAR_table_name = "DMV_ELP_TOXIC_COMMENTS"
-    vAR_query_string = "select * from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"
+    vAR_query_string = "select * from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+".DMV_ELP_TOXIC_COMMENTS` limit 500"
     vAR_dataframe = (
             vAR_bqclient.query(vAR_query_string)
             .result()
@@ -76,11 +75,12 @@ try:
     # df=pd.read_csv('/home/jupyter/DSAI_DMV_Text_Analyzer/DSAI_Dataset/jigsaw-toxic-comment-train.csv')
     
     df = read_bq_data()
-    df = df.head(100)
+    df = df.astype({"TOXIC": int, "SEVERE_TOXIC": int,"OBSCENE": int, "THREAT": int,"INSULT": int, "IDENTITY_HATE": int})
+    # df = df.head(100)
     print(df)
-    df['comment_text'] = df['comment_text'].map(lambda x : clean_text(x))
+    df['comment_text'] = df['COMMENT_TEXT'].map(lambda x : clean_text(x))
     train_sentences = df["comment_text"].values
-    list_classes = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
+    list_classes = ["TOXIC", "SEVERE_TOXIC", "OBSCENE", "THREAT", "INSULT", "IDENTITY_HATE"]
     train_y = df[list_classes].values
 
     # Name of the BERT model to use
@@ -95,30 +95,34 @@ try:
 
     # Load BERT tokenizer
     tokenizer = BertTokenizerFast.from_pretrained(pretrained_model_name_or_path = model_name, config = config)
-    bert = TFAutoModel.from_pretrained(model_name)
+    bert = TFBertModel.from_pretrained(model_name)
 
 
     input_ids = Input(shape=(max_length,), name='input_ids', dtype='int32')
     attention_mask = Input(shape=(max_length,), name='attention_mask', dtype='int32') 
     # input_ids = tf.convert_to_tensor(input_ids, dtype=tf.int32)
     # attention_mask = tf.convert_to_tensor(attention_mask, dtype=tf.int32)
-    inputs = {'input_ids': input_ids, 'attention_mask': attention_mask}
-    x = bert.bert(inputs)
+    # inputs = {'input_ids': input_ids, 'attention_mask': attention_mask}
+    embeddings = bert.bert(input_ids, attention_mask=attention_mask)[1]
+    
+    # x = bert.bert(inputs)
 
     #x2 =Dense(512, activation='relu')(x[1])
-    x2 = GlobalAveragePooling1D()(x[0])
+    
+    # x2 = GlobalAveragePooling1D()(x[0])
+    x = Dense(1024, activation='relu')(embeddings)
     #x3 = Dropout(0.5)(x2)
-    y =Dense(len(list_classes), activation='sigmoid', name='outputs')(x2)
+    y =Dense(len(list_classes), activation='softmax', name='outputs')(x)
 
-    model = Model(inputs=inputs, outputs=y)
+    model = Model(inputs=[input_ids,attention_mask], outputs=y)
     #model.layers[2].trainable = False
 
     # Take a look at the model
     model.summary()
 
 
-    optimizer = Adam(lr=4e-5, decay=1e-6)
-    model.compile(loss='binary_crossentropy',
+    optimizer = Adam(lr=1e-5, decay=1e-6)
+    model.compile(loss='categorical_crossentropy',
     optimizer=optimizer,
     metrics=['accuracy'])
 
@@ -129,11 +133,11 @@ try:
     add_special_tokens=True,
     max_length=max_length,
     truncation=True,
-    padding=True, 
-    return_tensors='tf',
-    return_token_type_ids = False,
-    return_attention_mask = True,
-    verbose = True)
+    padding='max_length', 
+    return_tensors='tf')
+    # return_token_type_ids = False,
+    # return_attention_mask = True,
+    # verbose = True)
 
     history = model.fit(
     x={'input_ids': x['input_ids'], 'attention_mask': x['attention_mask']},
@@ -141,11 +145,11 @@ try:
     y={'outputs': train_y},
     validation_split=0.1,
     batch_size=32,
-    epochs=1)
+    epochs=2)
     print('Model training completed-------------------------------')
     print('Model Accuracy - ',history.history)
     # Below path should be cloud storage path
-    model.save('BERT_MODEL_64B_4e5LR_3E_Test')
+    model.save('model.h5')
     print('Model saved successfully--------------------------------')
 
 except Exception as e:
