@@ -96,7 +96,7 @@ def main():
     with blob.open(mode= 'wb') as handle:
         pickle.dump(vAR_tokenizer, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    vAR_X = tokenizer.texts_to_sequences(final_df["PREPROCESSED_TEXT"].values)
+    vAR_X = vAR_tokenizer.texts_to_sequences(final_df["PREPROCESSED_TEXT"].values)
     vAR_X = pad_sequences(X, maxlen=MAX_SEQUENCE_LENGTH)
     vAR_Y = final_df.iloc[:,:6].values
     
