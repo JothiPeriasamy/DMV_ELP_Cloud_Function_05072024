@@ -24,32 +24,38 @@ import datetime
 import json
 import requests
 from DMV_ELP_Mapping_Response_To_Bigquery import Process_API_Response
-
+import os
 
 def Process_ELP_Request(vAR_batch_elp_configuration,elp_idx,vAR_request_url,vAR_headers):
 
    vAR_request_start_time = datetime.datetime.now().replace(microsecond=0)
-   configuration = vAR_batch_elp_configuration['CONFIGURATION'][elp_idx]
-   vAR_model = "RNN"
-   vAR_order_date = vAR_batch_elp_configuration['ORDER_DATE'][elp_idx]
-   vAR_order_id = vAR_batch_elp_configuration['ORDER_ID'][elp_idx]
-   vAR_sg_id = vAR_batch_elp_configuration['SG_ID'][elp_idx]
-   vAR_order_group_id = vAR_batch_elp_configuration['ORDER_GROUP_ID'][elp_idx]
-   vAR_request_date = vAR_batch_elp_configuration['REQUEST_DATE'][elp_idx]
-   vAR_payload = {"CONFIGURATION":str(configuration),"MODEL":str(vAR_model),"ORDER_DATE":str(vAR_order_date),"ORDER_ID":str(vAR_order_id),"ORDER_GROUP_ID":str(vAR_order_group_id),"SG_ID":str(vAR_sg_id),"REQUEST_DATE":str(vAR_request_date)}
    
+
+   vAR_payload = vAR_batch_elp_configuration.iloc[elp_idx].to_dict()
+   vAR_keys_to_remove = ['CREATED_DT','UPDATED_DT','CREATED_USER','UPDATED_USER']
+   
+   for key in vAR_keys_to_remove:
+      if key in vAR_payload.keys():
+         del vAR_payload[key]
+   
+   # Type conversion for datetime fields
+   vAR_payload['REQUEST_DATE'] = str(vAR_payload['REQUEST_DATE'])
+   vAR_payload['ORDER_PRINTED_DATE'] = str(vAR_payload['ORDER_PRINTED_DATE'])
+   vAR_payload['ORDER_PAYMENT_DATE'] = str(vAR_payload['ORDER_PAYMENT_DATE'])
+
+
+
    print('Payload - ',vAR_payload)
    vAR_request = requests.post(vAR_request_url, data=json.dumps(vAR_payload),headers=vAR_headers)
    
    vAR_result = vAR_request.text #Getting response as str
    print('vAR_result - ',vAR_result)
    vAR_result = json.loads(vAR_result) #converting str to dict
-   if len(vAR_result["Error Message"])>0:
-      print('Below Error in Order Id - '+str(vAR_batch_elp_configuration['ORDER_ID'][elp_idx]))
+   if len(vAR_result["ERROR_MESSAGE"])>0:
+      print('Below Error in Configuration - '+str(vAR_batch_elp_configuration['LICENSE_PLATE_CONFIG'][elp_idx]))
       print(vAR_result)
-      vAR_error_message = vAR_result["Error Message"]
+      vAR_error_message = vAR_result["ERROR_MESSAGE"]
       
-   print('Order Id - '+str(vAR_batch_elp_configuration['ORDER_ID'][elp_idx])+' Successfully processed')
    vAR_response_dict = Process_API_Response(vAR_result)
    vAR_request_end_time = datetime.datetime.now().replace(microsecond=0)
    vAR_each_request_time = vAR_request_end_time-vAR_request_start_time

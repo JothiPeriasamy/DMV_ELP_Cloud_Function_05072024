@@ -31,8 +31,8 @@ def Insert_Response_to_Bigquery(vAR_df):
     updated_by = []
     df_length = len(vAR_df)
     created_at += df_length * [datetime.datetime.utcnow()]
-    created_by += df_length * ['AWS_LAMBDA_USER']
-    updated_by += df_length * ['AWS_LAMBDA_USER']
+    created_by += df_length * [os.environ['GCP_USER']]
+    updated_by += df_length * [os.environ['GCP_USER']]
     updated_at += df_length * [datetime.datetime.utcnow()]
     vAR_df['CREATED_DT'] = created_at
     vAR_df['CREATED_USER'] = created_by
@@ -44,24 +44,11 @@ def Insert_Response_to_Bigquery(vAR_df):
 
     # Define table name, in format dataset.table_name
     table = os.environ["GCP_BQ_SCHEMA_NAME"]+'.DMV_ELP_MLOPS_RESPONSE'
-    job_config = bigquery.LoadJobConfig(autodetect=True,schema=[
-# Specify the type of columns whose type cannot be auto-detected. For
-# data type is ambiguous.
-    bigquery.SchemaField("ORDER_GROUP_ID", bigquery.enums.SqlTypeNames.STRING),
-    bigquery.SchemaField("ORDER_ID", bigquery.enums.SqlTypeNames.STRING),
-    bigquery.SchemaField("SG_ID", bigquery.enums.SqlTypeNames.STRING),
-    bigquery.SchemaField("CREATED_DT", bigquery.enums.SqlTypeNames.DATETIME,mode="REQUIRED"),
-            bigquery.SchemaField("CREATED_USER", bigquery.enums.SqlTypeNames.STRING,mode="REQUIRED"),
-            bigquery.SchemaField("UPDATED_DT", bigquery.enums.SqlTypeNames.DATETIME,mode="REQUIRED"),
-            bigquery.SchemaField("UPDATED_USER", bigquery.enums.SqlTypeNames.STRING,mode="REQUIRED"),
-            bigquery.SchemaField("REQUEST_DATE", bigquery.enums.SqlTypeNames.STRING,mode="REQUIRED"),
-            bigquery.SchemaField("REQUEST_ID", bigquery.enums.SqlTypeNames.INT64,mode="REQUIRED"),
-],write_disposition="WRITE_APPEND",)
-        # Load data to BQ
+    job_config = bigquery.LoadJobConfig(autodetect=True,write_disposition="WRITE_APPEND",source_format=bigquery.SourceFormat.CSV,allow_quoted_newlines = True)
+    # Load data to BQ
     job = client.load_table_from_dataframe(vAR_df, table,job_config=job_config)
 
     job.result()  # Wait for the job to complete.
-    table_id = 'elp-2022-352222.DMV_ELP.DMV_ELP_MLOPS_RESPONSE'
     table_id = os.environ["GCP_PROJECT_ID"]+'.'+table
     table = client.get_table(table_id)  # Make an API request.
     print(
@@ -69,3 +56,16 @@ def Insert_Response_to_Bigquery(vAR_df):
                 table.num_rows, len(table.schema), table_id
             )
         )
+
+
+
+
+def ReadResponseTable():
+    vAR_client = bigquery.Client()
+    vAR_response_table_name = "DMV_ELP_MLOPS_RESPONSE"
+    vAR_sql =(
+        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table_name+"`"+ " where date(created_dt)=current_date() order by REQUEST_ID"
+    )
+
+    vAR_df = vAR_client.query(vAR_sql).to_dataframe()
+    return vAR_df

@@ -37,8 +37,9 @@ def BERT_Model_Result(vAR_input_text):
     
     
     
-    vAR_test_sentence = vAR_input_text
-    vAR_target_columns = ['Toxic','Severe Toxic','Obscene','Threat','Insult','Identity Hate']
+    vAR_input_text = vAR_input_text.replace('/','')
+    vAR_input_text = vAR_input_text.replace('*','')
+    vAR_target_columns = ["TOXIC","SEVERE_TOXIC","OBSCENE","THREAT","INSULT","IDENTITY_HATE"]
     
     # Name of the BERT model to use
     model_name = 'bert-base-uncased'
@@ -53,18 +54,18 @@ def BERT_Model_Result(vAR_input_text):
     tokenizer = BertTokenizerFast.from_pretrained(pretrained_model_name_or_path = model_name, config = config)
     
     vAR_test_x = tokenizer(
-    text=vAR_test_sentence,
+    text=vAR_input_text,
     add_special_tokens=True,
     max_length=max_length,
     truncation=True,
-    padding=True, 
+    padding='max_length', 
     return_tensors='tf',
     return_token_type_ids = False,
     return_attention_mask = True,
     verbose = True)
     start_time = time.time()
      
-    MODEL_PATH = "gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"] +"/model.h5"
+    MODEL_PATH = "gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"]
     FS = gcsfs.GCSFileSystem()
     with FS.open(MODEL_PATH, 'rb') as model_file:
          model_gcs = h5py.File(model_file, 'r')
@@ -78,11 +79,16 @@ def BERT_Model_Result(vAR_input_text):
     
     
     vAR_result_data = pd.DataFrame(vAR_model_result,columns=vAR_target_columns)
-    vAR_target_sum = (np.sum(vAR_model_result)*100).round(2)
+    vAR_target_sum = (np.sum(vAR_model_result)).round(2)
     vAR_result_data.index = pd.Index(['Percentage'],name='category')
-    vAR_result_data = vAR_result_data.astype(float).round(5)*100
+    vAR_result_data = vAR_result_data.astype(float).round(2)
     
-    if vAR_target_sum>20:
+    # If Highest probability more than 50%, then configuration is denied
+
+    vAR_max_prob = np.array(vAR_model_result).max()
+    print('arg max val - ',vAR_max_prob)
+
+    if (vAR_max_prob)>=0.5:
         return False,vAR_result_data,vAR_target_sum
     else:
         return True,vAR_result_data,vAR_target_sum

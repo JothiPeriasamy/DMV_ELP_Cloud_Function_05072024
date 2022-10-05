@@ -40,12 +40,13 @@ def GetCurrentDateRequestCount():
         vAR_request_count = row.get('cnt')
     return vAR_request_count
 
+
 def ReadNotProcessedRequestData():
     vAR_client = bigquery.Client()
     vAR_request_table_name = "DMV_ELP_REQUEST"
     vAR_response_table_name = "DMV_ELP_MLOPS_RESPONSE"
     vAR_sql =(
-        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table_name+"`"+" where CONFIGURATION not in (select CONFIGURATION from `" +os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table_name+"`"+" where date(created_dt) = current_date()) and date(created_dt)=current_date()"
+        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table_name+"`"+" where LICENSE_PLATE_CONFIG not in (select LICENSE_PLATE_CONFIG from `" +os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table_name+"`"+" where date(created_dt) = current_date()) and date(created_dt)=current_date()"
     )
 
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()
@@ -62,7 +63,7 @@ def InsertRequesResponseMetaData(vAR_number_of_configuration):
       vAR_df['ROWNUM'] = 1*[vAR_rownum]
    vAR_df['TOTAL_NUMBER_OF_ORDERS'] = 1*[vAR_number_of_configuration]
    vAR_df['CREATED_DT'] = 1*[datetime.datetime.utcnow()]
-   vAR_df['CREATED_USER'] = 1*['AWS_LAMBDA_USER']
+   vAR_df['CREATED_USER'] = 1*[os.environ["GCP_USER"]]
    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
 
    # Define table name, in format dataset.table_name
@@ -94,3 +95,27 @@ def GetMetadatarownum():
     return vAR_request_count
 
 
+def GetCurrentDateResponseCount():
+    vAR_client = bigquery.Client()
+    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
+    vAR_query_job = vAR_client.query(
+        " SELECT count(1) as cnt FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where date(created_dt) = current_date() "
+    )
+
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    print('Total number of processed records - ',vAR_results)
+    for row in vAR_results:
+        vAR_response_count = row.get('cnt')
+    return vAR_response_count
+
+def GetMetadataTotalRecordsToProcess():
+    vAR_client = bigquery.Client()
+    vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
+    vAR_query_job = vAR_client.query(
+        " SELECT TOTAL_NUMBER_OF_ORDERS FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
+    )
+
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    for row in vAR_results:
+        vAR_total_orders = row.get('TOTAL_NUMBER_OF_ORDERS')
+    return vAR_total_orders

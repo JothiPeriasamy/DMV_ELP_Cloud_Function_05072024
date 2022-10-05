@@ -28,7 +28,7 @@ def DeleteProcessedConfigs():
    vAR_request_table = "DMV_ELP_REQUEST"
    vAR_response_table = "DMV_ELP_MLOPS_RESPONSE"
 
-   vAR_query_delete = " delete from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table+"`" +" where CONFIGURATION in (select Configuration from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table+"`"+" where date(created_dt) = current_date())"
+   vAR_query_delete = " delete from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table+"`" +" where LICENSE_PLATE_CONFIG in (select LICENSE_PLATE_CONFIG from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table+"`"+" where date(created_dt) = current_date())"
 
    vAR_job = vAR_client.query(vAR_query_delete)
    vAR_job.result()

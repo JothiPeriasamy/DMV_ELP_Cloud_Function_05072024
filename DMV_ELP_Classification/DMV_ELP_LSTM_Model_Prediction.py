@@ -33,6 +33,8 @@ import os
 
 
 def LSTM_Model_Result(vAR_input_text):
+    vAR_input_text = vAR_input_text.replace('/','')
+    vAR_input_text = vAR_input_text.replace('*','')
     vAR_model = keras.models.load_model("gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["LSTM_MODEL_LOAD_PATH"])
 
     MAX_SEQUENCE_LENGTH=200
@@ -55,11 +57,11 @@ def LSTM_Model_Result(vAR_input_text):
 
 
     vAR_result_data = pd.DataFrame(vAR_model_result,columns=vAR_target_columns)
-    vAR_target_sum = (np.sum(vAR_model_result)*100).round(2)
+    vAR_target_sum = (np.sum(vAR_model_result)).round(2)
     vAR_result_data.index = pd.Index(['Percentage'],name='category')
 
     print('vAR_result_data before - ',vAR_result_data)
-    vAR_result_data = vAR_result_data.astype(float).round(5)*100
+    vAR_result_data = vAR_result_data.astype(float).round(2)
     print('vAR_result_data after - ',vAR_result_data)
     
     
@@ -69,7 +71,7 @@ def LSTM_Model_Result(vAR_input_text):
     vAR_max_prob = np.array(vAR_model_result).max()
     print('arg max val - ',vAR_max_prob)
 
-    if (vAR_max_prob*100)>50:
+    if (vAR_max_prob)>=0.5:
         return False,vAR_result_data,vAR_target_sum
     else:
         return True,vAR_result_data,vAR_target_sum

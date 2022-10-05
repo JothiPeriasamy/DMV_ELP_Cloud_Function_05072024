@@ -23,20 +23,27 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 from google.cloud import bigquery
 import os
 
-# Bigquery insert function needs to be implemented
 
-
-
-def GetLastRequestId():
-    vAR_last_request_id = 0
+def GetPlateCode(vAR_license_plate_desc):
+    vAR_error_message = ""
     vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
+    vAR_plate_code = None
+    vAR_table_name = "DMV_ELP_PLATE_TYPE"
+    vAR_query = " SELECT PLATE_TYPE_CODE from "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where PLATE_TYPE_NAME='"+vAR_license_plate_desc+"'"
+    print('License code query - ',vAR_query)
     vAR_query_job = vAR_client.query(
-        " select REQUEST_ID from( SELECT distinct REQUEST_ID,UPDATED_DT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` order by UPDATED_DT desc limit 1)"
+        vAR_query
     )
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    print('Last Request Id - ',vAR_results)
-    for row in vAR_results:
-        vAR_last_request_id = row.get('REQUEST_ID')
-    return vAR_last_request_id
+    vAR_result_count = vAR_results.total_rows
+    if vAR_result_count==1:
+        for row in vAR_results:
+            vAR_plate_code = row.get('PLATE_TYPE_CODE')
+    elif vAR_result_count==0:
+        vAR_error_message = "PLATE CODE Not Found for given configuration"
+    elif vAR_result_count>1:
+        vAR_error_message = "More than one PLATE CODE Found for given configuration"
+    
+    return vAR_plate_code,vAR_error_message
+    

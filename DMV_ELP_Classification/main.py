@@ -20,13 +20,8 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 
 """
 
-import pandas as pd
-import numpy as np
-import tensorflow as tf
-import time
+
 import json
-import gcsfs
-import h5py
 import traceback
 import os
 
@@ -39,145 +34,130 @@ from DMV_ELP_Pattern_Denial import Pattern_Denial
 
 from DMV_ELP_BERT_Model_Prediction import BERT_Model_Result
 from DMV_ELP_LSTM_Model_Prediction import LSTM_Model_Result
+from DMV_ELP_Get_License_Plate_Code import GetPlateCode
 
-from DMV_ELP_Get_RequestId import GetLastRequestId
 
 def ELP_Validation(request):
     
-    request_json = request.get_json()
-    vAR_input_text = request_json['CONFIGURATION']
-    vAR_request_id = GetLastRequestId()+1
-    vAR_request_date = request_json['REQUEST_DATE']
-    vAR_sg_id = request_json['SG_ID']
-    vAR_order_group_id = request_json['ORDER_GROUP_ID']
-    vAR_order_date = request_json['ORDER_DATE']
-    vAR_order_id = request_json['ORDER_ID']
-
+    
     vAR_error_message = {}
-
+    request_json = request.get_json()
+    response_json = request_json.copy()
     try:
         # To resolve container error(TypeError: Descriptors cannot not be created directly)
         os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION']='python'
+
         
-        start_time = time.time()
+        vAR_input_text = request_json['LICENSE_PLATE_CONFIG'].upper()
+        vAR_license_plate_desc = request_json['LICENSE_PLATE_DESC']
+        
+        
+
+        
         vAR_result_message = ""
         
         vAR_error_message = Pre_Request_Validation(request_json)
+
+        vAR_sg_id = 1
+        vAR_platecode_error_message = ""
+        vAR_plate_code,vAR_platecode_error_message = GetPlateCode(vAR_license_plate_desc)
+        
         
         
         if len(vAR_error_message["Error Message"])==0:
-            vAR_profanity_result,vAR_result_message = Profanity_Words_Check(vAR_input_text)
-            if not vAR_profanity_result:
-                vAR_message_level_1 = "Accepted"
-            elif vAR_profanity_result:
-                vAR_message_level_1 = "Denied - "+vAR_result_message
+            if len(vAR_platecode_error_message)>0:
+                vAR_error_message['Error Message'] = vAR_platecode_error_message
+            # It can be changed later
+            vAR_model = os.environ["MODEL"]
+            response_json["SG_ID"] = vAR_sg_id
+            response_json["PLATE_CODE"] = vAR_plate_code
+            response_json["ERROR_MESSAGE"] = vAR_error_message["Error Message"]
 
-            vAR_pdc_flag,vAR_previously_denied_validation_message = Previously_Denied_Configuration_Validation(vAR_input_text)
+            # Profanity check
+            vAR_profanity_result,vAR_result_message = Profanity_Words_Check(vAR_input_text)
+
+            if not vAR_profanity_result:
+                response_json["BADWORDS_CLASSIFICATION"] = "NOT A BADWORD"
+                response_json["RECOMMENDATION"] = "Accepted"
+
+            elif vAR_profanity_result:
+                response_json["BADWORDS_CLASSIFICATION"] = vAR_result_message
+                response_json["RECOMMENDATION"] = "Denied"
+                response_json["REASON"] = "BADWORD"
+                return response_json
+
+            # FWord Guideline check
             vAR_fword_flag,vAR_fword_validation_message = FWord_Validation(vAR_input_text)
 
-            vAR_regex_result,vAR_pattern = Pattern_Denial(vAR_input_text)
-            if not vAR_regex_result:
-                vAR_message_level_2 = "Denied - Similar to " +vAR_pattern+ " Pattern"
-            elif vAR_regex_result:
-                vAR_message_level_2 = "Accepted"
-
             if (vAR_fword_flag):
-                return {"Direct Profanity":{"Is accepted":not vAR_profanity_result,"Message":vAR_message_level_1},
-                "Previously Denied":vAR_previously_denied_validation_message, "FWord Guideline Validation":vAR_fword_validation_message,
-                "Denied Pattern":{"Is accepted":vAR_regex_result,"Message":vAR_message_level_2},
-                'Order Id':vAR_order_id,'Configuration':vAR_input_text,
-                'Request Id':vAR_request_id,'Request Date':vAR_request_date,'Simply Gov Id':vAR_sg_id,
-                'Order Group Id':vAR_order_group_id,'Order Date':vAR_order_date,
-                "Error Message":vAR_error_message["Error Message"],"Recommendation":"Denied","Reason":vAR_fword_validation_message}
-            if (vAR_pdc_flag):
-                return {"Direct Profanity":{"Is accepted":not vAR_profanity_result,"Message":vAR_message_level_1},
-                "Previously Denied":vAR_previously_denied_validation_message, "FWord Guideline Validation":vAR_fword_validation_message,
-                "Denied Pattern":{"Is accepted":vAR_regex_result,"Message":vAR_message_level_2},
-                'Order Id':vAR_order_id,'Configuration':vAR_input_text,
-                'Request Id':vAR_request_id,'Request Date':vAR_request_date,'Simply Gov Id':vAR_sg_id,
-                'Order Group Id':vAR_order_group_id,'Order Date':vAR_order_date,
-                "Error Message":vAR_error_message["Error Message"],"Recommendation":"Denied","Reason":vAR_previously_denied_validation_message}
-            if (vAR_profanity_result):
-                return {"Direct Profanity":{"Is accepted":not vAR_profanity_result,"Message":vAR_message_level_1},
-                "Previously Denied":vAR_previously_denied_validation_message, "FWord Guideline Validation":vAR_fword_validation_message,
-                "Denied Pattern":{"Is accepted":vAR_regex_result,"Message":vAR_message_level_2},
-                'Order Id':vAR_order_id,'Configuration':vAR_input_text,
-                'Request Id':vAR_request_id,'Request Date':vAR_request_date,'Simply Gov Id':vAR_sg_id,
-                'Order Group Id':vAR_order_group_id,'Order Date':vAR_order_date,
-                "Error Message":vAR_error_message["Error Message"],"Recommendation":"Denied","Reason":vAR_message_level_1}
-            if (not vAR_regex_result):
-                return {"Direct Profanity":{"Is accepted":not vAR_profanity_result,"Message":vAR_message_level_1},
-                "Previously Denied":vAR_previously_denied_validation_message, "FWord Guideline Validation":vAR_fword_validation_message,
-                "Denied Pattern":{"Is accepted":vAR_regex_result,"Message":vAR_message_level_2},
-                'Order Id':vAR_order_id,'Configuration':vAR_input_text,
-                'Request Id':vAR_request_id,'Request Date':vAR_request_date,'Simply Gov Id':vAR_sg_id,
-                'Order Group Id':vAR_order_group_id,'Order Date':vAR_order_date,
-                "Error Message":vAR_error_message["Error Message"],"Recommendation":"Denied","Reason":vAR_message_level_2}
+                response_json["GUIDELINE_FWORD_CLASSIFICATION"] = vAR_fword_validation_message
+                response_json["RECOMMENDATION"] = "Denied"
+                response_json["REASON"] = "CONFIGURATION FOUND IN FWORD GUIDELINES"
+                return response_json
+            elif not vAR_fword_flag:
+                response_json["GUIDELINE_FWORD_CLASSIFICATION"] = vAR_fword_validation_message
+                response_json["RECOMMENDATION"] = "Accepted"
 
-            if request_json['MODEL'].upper()=='RNN':
+            # Previously Denied configuration check
+            vAR_pdc_flag,vAR_previously_denied_validation_message = Previously_Denied_Configuration_Validation(vAR_input_text)
+            
+
+            if (vAR_pdc_flag):
+                response_json["PREVIOUSLY_DENIED_CLASSIFICATION"] = vAR_previously_denied_validation_message
+                response_json["RECOMMENDATION"] = "Denied"
+                response_json["REASON"] = "CONFIGURATION FOUND IN PREVIOUSLY DENIED CONFIGURATIONS"
+                return response_json
+            elif not vAR_pdc_flag:
+                response_json["PREVIOUSLY_DENIED_CLASSIFICATION"] = vAR_previously_denied_validation_message
+                response_json["RECOMMENDATION"] = "Accepted"
+
+            # Pattern denial check
+            vAR_regex_result,vAR_pattern = Pattern_Denial(vAR_input_text)
+
+
+            if not vAR_regex_result:
+                response_json["RULE_BASED_CLASSIFICATION"] = " Similar to " +vAR_pattern+ " Pattern"
+                response_json["RECOMMENDATION"] = "Denied"
+                response_json["REASON"] = "DENIED PATTERN"
+                return response_json
+
+            elif vAR_regex_result:
+                response_json["RULE_BASED_CLASSIFICATION"] = "NOT FOUND ANY DENIAL PATTERN"
+                response_json["RECOMMENDATION"] = "Accepted"
+
+            # Model prediction for configuration
+            if vAR_model.upper()=='RNN':
                 
                 vAR_result,vAR_result_data,vAR_result_target_sum = LSTM_Model_Result(vAR_input_text)
-                vAR_result_data = vAR_result_data.to_json(orient='records')
-                if not vAR_result:
-                    vAR_recommendation_level_3 = "Denied"
-                    vAR_reason_level_3 = "Since the highest profanity category probability exceeds the threshold value(50%)"
-                else:
-                    vAR_recommendation_level_3 = "Accepted"
-                    vAR_reason_level_3 = "Since the highest profanity category probability below the threshold value(50%)"
-                vAR_response_time = round(time.time() - start_time,2)
-
-                return {"Direct Profanity":{"Is accepted":not vAR_profanity_result,"Message":vAR_message_level_1},
-                "Previously Denied":vAR_previously_denied_validation_message, "FWord Guideline Validation":vAR_fword_validation_message,
-                "Denied Pattern":{"Is accepted":vAR_regex_result,"Message":vAR_message_level_2},
-                "Model Prediction":{"Is accepted":vAR_result,"Recommendation":vAR_recommendation_level_3,"Reason":vAR_reason_level_3,"Profanity Classification":json.loads(vAR_result_data),
-                'Sum of all Categories':vAR_result_target_sum},
-                'Order Id':vAR_order_id,'Configuration':vAR_input_text,
-                'Request Id':vAR_request_id,'Request Date':vAR_request_date,'Simply Gov Id':vAR_sg_id,
-                'Order Group Id':vAR_order_group_id,'Order Date':vAR_order_date,
-                'Response time':str(vAR_response_time)+" secs","Error Message":vAR_error_message["Error Message"]}
-
-            elif request_json['MODEL'].upper()=='BERT':
+                
+                
+            elif vAR_model.upper()=='BERT':
 
                 vAR_result,vAR_result_data,vAR_result_target_sum = BERT_Model_Result(vAR_input_text)
-                vAR_result_data = vAR_result_data.to_json(orient='records')
-                if vAR_result_target_sum>20:
-                    vAR_recommendation_level_3 = "Denied"
-                    vAR_reason_level_3 = "Since the profanity probability exceeds the threshold(sum of probability >20%)"
-                else:
-                    vAR_recommendation_level_3 = "Accepted"
-                    vAR_reason_level_3 = "Since the profanity probability less than the threshold(sum of probability <20%)"
-                vAR_response_time = round(time.time() - start_time,2)
+                
+            vAR_result_data = str(vAR_result_data.to_json(orient='records'))
 
-                return {"Direct Profanity":{"Is accepted":not vAR_profanity_result,"Message":vAR_message_level_1},
-                "Previously Denied":vAR_previously_denied_validation_message, "FWord Guideline Validation":vAR_fword_validation_message,
-                "Denied Pattern":{"Is accepted":vAR_regex_result,"Message":vAR_message_level_2},
-                "Model Prediction":{"Is accepted":vAR_result,"Recommendation":vAR_recommendation_level_3,"Reason":vAR_reason_level_3,"Profanity Classification":json.loads(vAR_result_data),
-                'Sum of all Categories':vAR_result_target_sum},
-                'Order Id':vAR_order_id,'Configuration':vAR_input_text,
-                'Request Id':vAR_request_id,'Request Date':vAR_request_date,'Simply Gov Id':vAR_sg_id,
-                'Order Group Id':vAR_order_group_id,'Order Date':vAR_order_date,
-                'Response time':str(vAR_response_time)+" secs","Error Message":vAR_error_message["Error Message"]}
+            if not vAR_result:
+                vAR_recommendation = "Denied"
+                vAR_recommendation_reason = "Highest Profanity category probability should be below the threshold value(0.5)"
+                response_json["RECOMMENDATION"] = vAR_recommendation
+                response_json["REASON"] = vAR_recommendation_reason
+            else:
+                vAR_recommendation = "Accepted"
+                vAR_recommendation_reason = "Since Highest Profanity category probability less than the threshold value(0.5), configuration accepted"
+                response_json["RECOMMENDATION"] = vAR_recommendation
+                response_json["REASON"] = vAR_recommendation_reason
+
+            response_json["MODEL"] = vAR_model
+            response_json["MODEL_PREDICTION"] = {"PROFANITY_CLASSIFICATION":json.loads(str(vAR_result_data)),"SUM_OF_ALL_CATEGORIES":float(vAR_result_target_sum)}
+            return response_json
 
         else:
-            vAR_error_message["Configuration"] = vAR_input_text
-            vAR_error_message["Request Id"] = vAR_request_id
-            vAR_error_message["Request Date"] = vAR_request_date
-            vAR_error_message["Simply Gov Id"] = vAR_sg_id
-            vAR_error_message["Order Group Id"] = vAR_order_group_id
-            vAR_error_message["Order Date"] = vAR_order_date
-            vAR_error_message["Order Id"] = vAR_order_id
-
-            return vAR_error_message
+            response_json["ERROR_MESSAGE"] = vAR_error_message["Error Message"]
+            return response_json
 
     except BaseException as e:
         print('In Error Block - '+str(e))
-        print('Error Traceback - '+str(traceback.print_exc()))
-        vAR_error_message["Configuration"] = vAR_input_text
-        vAR_error_message["Request Id"] = vAR_request_id
-        vAR_error_message["Request Date"] = vAR_request_date
-        vAR_error_message["Simply Gov Id"] = vAR_sg_id
-        vAR_error_message["Order Group Id"] = vAR_order_group_id
-        vAR_error_message["Order Date"] = vAR_order_date
-        vAR_error_message["Order Id"] = vAR_order_id
-        vAR_error_message["Error Message"] = '### '+str(e)
-        return vAR_error_message
+        print('Error Traceback4 - '+str(traceback.print_exc()))
+        response_json["ERROR_MESSAGE"] = '### '+str(e)
+        return response_json

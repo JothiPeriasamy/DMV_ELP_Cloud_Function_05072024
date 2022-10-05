@@ -36,7 +36,6 @@ def GetLastErrorId():
     )
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    print('Last Error Id - ',vAR_results)
     for row in vAR_results:
         vAR_last_error_id = row.get('max_error_id')
     return vAR_last_error_id
@@ -62,7 +61,7 @@ def InsertErrorLog(vAR_response_dict):
    vAR_result['ERROR_CODE'] = vAR_response_dict['ERROR_MESSAGE']
    vAR_result['ERROR_CONTEXT'] = str(vAR_response_dict)
    vAR_result['ERROR_MESSAGE'] = vAR_response_dict['ERROR_MESSAGE']
-   vAR_result['CONFIGURATION'] = vAR_response_dict['CONFIGURATION']
+   vAR_result['CONFIGURATION'] = vAR_response_dict['LICENSE_PLATE_CONFIG']
 
    vAR_df = pd.DataFrame(vAR_result,index=[0])
    vAR_df['CREATED_DT'] = created_at

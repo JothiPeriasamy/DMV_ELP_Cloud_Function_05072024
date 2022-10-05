@@ -41,7 +41,7 @@ def Read_Previously_Denied_Configuration_Table():
 
     vAR_bqclient = bigquery.Client()
     vAR_table_name = "DMV_ELP_PREVIOUSLY_DENIED_CONFIGURATION"
-    vAR_query_string = " SELECT PREVIOUSLY_DENIED_CONFIG,DENIAL_REASON FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` """
+    vAR_query_string = " SELECT RTRIM(PREVIOUSLY_DENIED_CONFIG) as PREVIOUSLY_DENIED_CONFIG,DENIAL_REASON FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` """
 
     vAR_dataframe = (
         vAR_bqclient.query(vAR_query_string)

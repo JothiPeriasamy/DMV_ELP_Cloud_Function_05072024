@@ -23,22 +23,22 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 import datetime
 from google.cloud import bigquery
 import os
+import numpy as np
 
 def Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configuration):
 
    vAR_config_df = vAR_batch_elp_configuration
-
+   
 
    created_at = []
    created_by = []
    updated_at = []
    updated_by = []
    created_at += vAR_number_of_configuration * [datetime.datetime.utcnow()]
-   created_by += vAR_number_of_configuration * ['AWS_LAMBDA_USER']
-   updated_by += vAR_number_of_configuration * ['AWS_LAMBDA_USER']
+   created_by += vAR_number_of_configuration * [os.environ['GCP_USER']]
+   updated_by += vAR_number_of_configuration * [os.environ['GCP_USER']]
    updated_at += vAR_number_of_configuration * [datetime.datetime.utcnow()]
 
-   vAR_config_df['CONFIG_ID'] = range(1,vAR_number_of_configuration+1)
    vAR_config_df['CREATED_USER'] = created_by
    vAR_config_df['CREATED_DT'] = created_at
    vAR_config_df['UPDATED_USER'] = updated_by
@@ -48,7 +48,7 @@ def Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configu
 
    # Define table name, in format dataset.table_name
    table = os.environ["GCP_BQ_SCHEMA_NAME"]+'.'+'DMV_ELP_REQUEST'
-   job_config = bigquery.LoadJobConfig(autodetect=True,write_disposition="WRITE_APPEND",)
+   job_config = bigquery.LoadJobConfig(autodetect=True,write_disposition="WRITE_APPEND",source_format=bigquery.SourceFormat.CSV)
    job = client.load_table_from_dataframe(vAR_config_df, table,job_config=job_config)
 
    job.result()  # Wait for the job to complete.

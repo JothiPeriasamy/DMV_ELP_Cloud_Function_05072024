@@ -25,13 +25,13 @@ from google.cloud import bigquery
 import os
 
 def Profanity_Words_Check(vAR_val):
-    vAR_input = vAR_val
+    vAR_input = vAR_val.replace('/','')
+    vAR_input = vAR_val.replace('*','')
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_BADWORDS"
     vAR_sql = " SELECT * FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` order by badword_desc "
     vAR_badwords_df = vAR_client.query(vAR_sql).to_dataframe()
     # vAR_badwords_df = pd.read_csv('gs://dmv_elp_project/data/badwords_list.csv',header=None)
-    print('data - ',vAR_badwords_df.head(20))
     vAR_result_message = ""
     
 #---------------Profanity logic implementation with O(log n) time complexity-------------------
@@ -44,14 +44,14 @@ def Profanity_Words_Check(vAR_val):
         return True,vAR_result_message
     
     # Reversal profanity check
-    vAR_reverse_input = "".join(reversed(vAR_val)).upper()
+    vAR_reverse_input = "".join(reversed(vAR_input)).upper()
     vAR_is_input_in_profanity_list = Binary_Search(vAR_badwords_df['BADWORD_DESC'],vAR_reverse_input)
     if vAR_is_input_in_profanity_list!=-1:
         vAR_result_message = 'Input ' +vAR_val+ ' matches with reversal profanity - '+vAR_badwords_df['BADWORD_DESC'][vAR_is_input_in_profanity_list]
         return True,vAR_result_message
     
     # Number replacement profanity check
-    vAR_number_replaced = Number_Replacement(vAR_val).upper()
+    vAR_number_replaced = Number_Replacement(vAR_input).upper()
     vAR_is_input_in_profanity_list = Binary_Search(vAR_badwords_df['BADWORD_DESC'],vAR_number_replaced)
     if vAR_is_input_in_profanity_list!=-1: 
        vAR_result_message = 'Input ' +vAR_val+ ' matches with number replacement profanity - '+vAR_badwords_df['BADWORD_DESC'][vAR_is_input_in_profanity_list]
@@ -63,8 +63,18 @@ def Profanity_Words_Check(vAR_val):
     if vAR_is_input_in_profanity_list!=-1:  
         vAR_result_message = 'Input ' +vAR_val+ ' matches with reversal number replacement profanity - '+vAR_badwords_df['BADWORD_DESC'][vAR_is_input_in_profanity_list]
         return True,vAR_result_message
-    
-    print('1st lvl message - ',vAR_result_message)
+
+    # Mirror word check
+    # vAR_mirror_string = MirrorString(vAR_val)
+    # if vAR_mirror_string is not None:
+    #     vAR_is_input_in_profanity_list = Binary_Search(vAR_badwords_df['BADWORD_DESC'],vAR_mirror_string)
+    #     if vAR_is_input_in_profanity_list!=-1:
+    #         vAR_result_message = 'Input ' +vAR_val+ ' matches with mirror word profanity - '+vAR_badwords_df['BADWORD_DESC'][vAR_is_input_in_profanity_list]
+    #         return True,vAR_result_message
+    # else:
+    #     print('Mirror string found as none')
+
+
     return False,vAR_result_message
 
 
@@ -82,7 +92,6 @@ def Number_Replacement(vAR_val):
         vAR_output = vAR_output.replace("5","S")
     if "8" in vAR_val:
         vAR_output = vAR_output.replace("8","B")
-        print('8 replaced with B - ',vAR_val)
     if "0" in vAR_val:
         vAR_output = vAR_output.replace("0","O")
     print('number replace - ',vAR_output)
@@ -97,7 +106,6 @@ def Binary_Search(data, x):
     i =0
     while vAR_low <= vAR_high:
         i = i+1
-        print('No.of iteration - ',i)
         vAR_mid = (vAR_high + vAR_low) // 2
         
         # If x is greater, ignore left half
@@ -115,3 +123,12 @@ def Binary_Search(data, x):
     # If we reach here, then the element was not present
     return -1
 
+def MirrorString(vAR_input):
+    vAR_input = vAR_input.replace('/','')
+    vAR_input = vAR_input.replace('*','')
+    vAR_mirror_chars={'Z':'S','3':'E','S':'Z','E':'3','T':'T','I':'I','H':'H'}
+    try:
+        return "".join(vAR_mirror_chars[char] for char in reversed(vAR_input.upper()))
+    except KeyError as e:
+        print('Key Error in mirror - ',str(e))
+        pass
