@@ -70,7 +70,7 @@ def InsertErrorLog(vAR_response_dict):
    vAR_df['UPDATED_USER'] = updated_by
 
    # Load client
-   client = bigquery.Client(project='elp-2022-352222')
+   client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
 
    # Define table name, in format dataset.table_name
    table = os.environ["GCP_BQ_SCHEMA_NAME"]+'.DMV_ELP_ERROR_LOG'

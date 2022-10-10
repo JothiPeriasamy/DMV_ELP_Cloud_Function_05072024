@@ -1,0 +1,20 @@
+steps:
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+    - functions
+    - deploy
+    - dmv-elp-classification
+    - --gen2
+    - --source=DMV_ELP_Cloud_Function/DMV_ELP_Classification/
+    - --trigger-http
+    - --runtime=python38
+    - --entry-point=ELP_Validation
+    - --allow-unauthenticated
+    - --region=us-west1
+    - --memory=32GB
+
+
+timeout: 900s
+options:
+  logging: CLOUD_LOGGING_ONLY
+  

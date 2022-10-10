@@ -24,7 +24,7 @@ import os
 
 def UpdateMetadataTable():
    vAR_num_of_updated_row =0
-   vAR_client = bigquery.Client(project='elp-2022-352222')
+   vAR_client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
    vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
 
 

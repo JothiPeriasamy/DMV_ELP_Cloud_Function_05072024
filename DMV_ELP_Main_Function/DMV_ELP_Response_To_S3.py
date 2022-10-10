@@ -26,10 +26,11 @@ import datetime
 import os
 
 def Upload_Response_To_S3(vAR_result,vAR_file_name):
-    
    vAR_bucket_name = os.environ['S3_BUCKET_NAME']
    vAR_csv_buffer = StringIO()
    vAR_result.to_csv(vAR_csv_buffer)
    vAR_s3_resource = boto3.resource('s3',aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
    vAR_s3_resource.Object(vAR_bucket_name, os.environ["AWS_RESPONSE_PATH"]+'/response_'+vAR_file_name).put(Body=vAR_csv_buffer.getvalue())
+   print('bucket - ',vAR_bucket_name)
+   print('path - ',os.environ["AWS_RESPONSE_PATH"]+'/response_'+vAR_file_name)
    print('API Response successfully saved into S3 bucket')

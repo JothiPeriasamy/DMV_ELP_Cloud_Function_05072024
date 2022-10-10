@@ -222,7 +222,8 @@ def PreProcessRequest(vAR_batch_elp_configuration_raw):
 
    vAR_number_of_configuration = len(vAR_batch_elp_configuration_raw)
    # Drop unncessary column from request file
-   vAR_batch_elp_configuration_raw = vAR_batch_elp_configuration_raw.drop(['Unnamed: 16'],axis=1)
+   if 'Unnamed: 16' in vAR_batch_elp_configuration_raw:
+      vAR_batch_elp_configuration_raw = vAR_batch_elp_configuration_raw.drop(['Unnamed: 16'],axis=1)
    vAR_batch_elp_configuration_raw.insert(0,'REQUEST_ID',np.arange(1,vAR_number_of_configuration+1))
    vAR_batch_elp_configuration_raw.insert(1,'REQUEST_DATE',vAR_number_of_configuration*[date.today()])
 
