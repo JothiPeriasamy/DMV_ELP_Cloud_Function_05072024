@@ -2,6 +2,7 @@ steps:
   - name: 'gcr.io/cloud-builders/gcloud'
     args: [
       'functions', 'deploy', 'dmv-elp-classification',
+      '--gen2',
       '--trigger-http',
       '--runtime', 'python38',
       '--region', 'us-west1',
@@ -10,6 +11,7 @@ steps:
   - name: 'gcr.io/cloud-builders/gcloud'
     args: [
       'functions', 'deploy', 'dmv-elp-classification-main',
+      '--gen2',
       '--trigger-http',
       '--runtime', 'python38',
       '--region', 'us-west1',
