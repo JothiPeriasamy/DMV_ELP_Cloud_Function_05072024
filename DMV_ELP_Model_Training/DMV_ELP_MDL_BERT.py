@@ -20,6 +20,7 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 
 
 
+
 # Load Huggingface transformers
 from transformers import TFBertModel,  BertConfig, BertTokenizerFast, TFAutoModel
 
