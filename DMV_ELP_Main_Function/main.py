@@ -30,6 +30,7 @@ import sys
 from google.cloud import storage
 import os
 from datetime import date
+import boto3
 
 from DMV_ELP_Request_Upload_To_GCS import Upload_Request_GCS
 
@@ -62,111 +63,115 @@ def Process_ELP_Orders(request):
       try:
          
          vAR_request_json = request.get_json(silent=True)
-         vAR_file_name = os.environ["AWS_REQUEST_PATH"].split('/')[-1]
-         vAR_s3_url = "s3://"+os.environ["S3_BUCKET_NAME"]+"/"+os.environ["AWS_REQUEST_PATH"]
+         
+         vAR_s3_url = "s3://"
          vAR_timeout_secs = int(os.environ['TIMEOUT_SECS'])
          pool = mp.Pool(mp.cpu_count())
-         if vAR_s3_url.startswith('s3'):
-            vAR_request_url = os.environ['REQUEST_URL']
-            vAR_output = pd.DataFrame()
-            vAR_headers = {'content-type': 'application/json','user-agent': 'Mozilla/5.0'}
-            
-            vAR_error_message = ""
-            vAR_current_date_request_count = GetCurrentDateRequestCount()
-            
-            vAR_current_date_response_count = GetCurrentDateResponseCount()
 
-            if vAR_current_date_request_count==0 and vAR_current_date_response_count==0:
-               vAR_batch_elp_configuration_raw = pd.read_csv(vAR_s3_url,delimiter=';')
-               vAR_batch_elp_configuration = PreProcessRequest(vAR_batch_elp_configuration_raw)
-               vAR_number_of_configuration = len(vAR_batch_elp_configuration)
-               Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configuration)
-               InsertRequesResponseMetaData(vAR_number_of_configuration)
+         vAR_request_url = os.environ['REQUEST_URL']
+         vAR_output = pd.DataFrame()
+         vAR_headers = {'content-type': 'application/json','user-agent': 'Mozilla/5.0'}
+         
+         vAR_error_message = ""
+         vAR_current_date_request_count = GetCurrentDateRequestCount()
+         
+         vAR_current_date_response_count = GetCurrentDateResponseCount()
 
-            vAR_configuration_df = ReadNotProcessedRequestData()
-            vAR_configuration_df_len = len(vAR_configuration_df)
+         if vAR_current_date_request_count==0 and vAR_current_date_response_count==0:
+            vAR_s3_request_path = RequestFileValidation()
+            if len(vAR_s3_request_path)>0:
+               vAR_s3_url = vAR_s3_url+os.environ["S3_REQUEST_BUCKET_NAME"]+'/'+vAR_s3_request_path
+               print('VAR S3 Request URL - ',vAR_s3_url)
+            else:
+               vAR_err_message = "No valid csv request file found in path - "+vAR_s3_url+os.environ["S3_REQUEST_BUCKET_NAME"]+'/'+os.environ["AWS_REQUEST_PATH"]
+               raise Exception(vAR_err_message)
 
-            print('There are '+str(vAR_configuration_df_len)+' configurations yet to be processed')
+            vAR_batch_elp_configuration_raw = pd.read_csv(vAR_s3_url,delimiter=';')
+            vAR_batch_elp_configuration = PreProcessRequest(vAR_batch_elp_configuration_raw)
+            vAR_number_of_configuration = len(vAR_batch_elp_configuration)
+            Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configuration)
+            InsertRequesResponseMetaData(vAR_number_of_configuration)
 
-            if vAR_current_date_request_count==0 and vAR_configuration_df_len>0:
-               Upload_Request_GCS(vAR_batch_elp_configuration)
-               Move_Request_AWS_Processed()
+         vAR_configuration_df = ReadNotProcessedRequestData()
+         vAR_configuration_df_len = len(vAR_configuration_df)
 
-            
-            UpdateMetadataTable()
+         print('There are '+str(vAR_configuration_df_len)+' configurations yet to be processed')
 
+         if vAR_current_date_request_count==0 and vAR_configuration_df_len>0:
+            Upload_Request_GCS(vAR_batch_elp_configuration)
+            Move_Request_AWS_Processed(vAR_s3_request_path)
 
-            
-
-            f.write('Start Time - {}\n\n'.format(vAR_process_start_time))
-            f.write('Order No\t\t\t Start Time\t\t\t End Time\t\t\t Total Time\n')
-            
+         
+         UpdateMetadataTable()
 
 
-            vAR_output_result_objects = [pool.apply_async(Process_ELP_Request,args=(vAR_configuration_df,elp_idx,vAR_request_url,vAR_headers)) for elp_idx in range(vAR_configuration_df_len)]
+         
 
-            vAR_results = []
-            for vAR_result in vAR_output_result_objects:
-               print('Time taking in for loop - ',time.time()-vAR_timeout_start)
-               if (time.time()-vAR_timeout_start)<vAR_timeout_secs:
-                  f.write(vAR_result.get()["Process Time"])
-                  
-                  if len(vAR_result.get()['ERROR_MESSAGE'])>0:
-                     InsertErrorLog(vAR_result.get())
-                     vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
-                     vAR_last_processed_record = vAR_result.get()['LICENSE_PLATE_CONFIG']
-                     
-                  if 'Process Time' in vAR_result.get().keys():
-                     del vAR_result.get()['Process Time']
-                  vAR_results.append(vAR_result.get())
-                  Insert_Response_to_Bigquery(pd.DataFrame(vAR_result.get(),index=[0]))
-                  print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' Inserted into response table')
-                  DeleteProcessedConfigs()
-                  print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' deleted from request table')
-                  vAR_processed_configs.append(vAR_result.get()['LICENSE_PLATE_CONFIG'])
+         f.write('Start Time - {}\n\n'.format(vAR_process_start_time))
+         f.write('Order No\t\t\t Start Time\t\t\t End Time\t\t\t Total Time\n')
+         
+
+
+         vAR_output_result_objects = [pool.apply_async(Process_ELP_Request,args=(vAR_configuration_df,elp_idx,vAR_request_url,vAR_headers)) for elp_idx in range(vAR_configuration_df_len)]
+
+         vAR_results = []
+         for vAR_result in vAR_output_result_objects:
+            print('Time taking in for loop - ',time.time()-vAR_timeout_start)
+            if (time.time()-vAR_timeout_start)<vAR_timeout_secs:
+               f.write(vAR_result.get()["Process Time"])
+               
+               if len(vAR_result.get()['ERROR_MESSAGE'])>0:
+                  InsertErrorLog(vAR_result.get())
                   vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
                   vAR_last_processed_record = vAR_result.get()['LICENSE_PLATE_CONFIG']
+                  
+               if 'Process Time' in vAR_result.get().keys():
+                  del vAR_result.get()['Process Time']
+               vAR_results.append(vAR_result.get())
+               Insert_Response_to_Bigquery(pd.DataFrame(vAR_result.get(),index=[0]))
+               print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' Inserted into response table')
+               DeleteProcessedConfigs()
+               print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' deleted from request table')
+               vAR_processed_configs.append(vAR_result.get()['LICENSE_PLATE_CONFIG'])
+               vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
+               vAR_last_processed_record = vAR_result.get()['LICENSE_PLATE_CONFIG']
+                  
+            else:
+               raise TimeoutError('Timeout Error inside result iteration')
+            
+            
+
                      
-               else:
-                  raise TimeoutError('Timeout Error inside result iteration')
-               
-               
+         # Close Pool and let all the processes complete
+         pool.close()
+         # postpones the execution of next line of code until all processes in the queue are done.
+         pool.join()  
 
-                      
-            # Close Pool and let all the processes complete
-            pool.close()
-            # postpones the execution of next line of code until all processes in the queue are done.
-            pool.join()  
+         
 
+         vAR_records_to_process = GetMetadataTotalRecordsToProcess()
+         vAR_response_count = GetCurrentDateResponseCount()
+         print('records to process - ',vAR_records_to_process)
+         print('response_count - ', vAR_response_count)
+         if vAR_records_to_process==vAR_response_count and vAR_configuration_df_len!=0:
+            vAR_output_copy = ReadResponseTable()
+            vAR_output_csv = vAR_output_copy.to_csv()
             
+            # Upload response to GCS bucket
+            Upload_Response_GCS(vAR_output_csv)
 
-            vAR_records_to_process = GetMetadataTotalRecordsToProcess()
-            vAR_response_count = GetCurrentDateResponseCount()
-            print('records to process - ',vAR_records_to_process)
-            print('response_count - ', vAR_response_count)
-            if vAR_records_to_process==vAR_response_count and vAR_configuration_df_len!=0:
-               vAR_output_copy = ReadResponseTable()
-               vAR_output_csv = vAR_output_copy.to_csv()
-               
-               # Upload response to GCS bucket
-               Upload_Response_GCS(vAR_output_csv)
-
-               # Upload response to S3 bucket
-               Upload_Response_To_S3(vAR_output_copy,vAR_file_name)
+            # Upload response to S3 bucket
+            ResponsePathValidation(vAR_output_copy)
             
+         
 
 
-            vAR_process_end_time = datetime.datetime.now().replace(microsecond=0)
-            vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
+         vAR_process_end_time = datetime.datetime.now().replace(microsecond=0)
+         vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
 
 
-            f.write('\n\nEnd Time - {}\nTotal Processing Time - {}'.format(vAR_process_end_time,vAR_total_processing_time))
-            return 'ELP Configurations Successfully Processed'
-
-
-         else:
-            return 'Input configuration file not found in S3'
-      
+         f.write('\n\nEnd Time - {}\nTotal Processing Time - {}'.format(vAR_process_end_time,vAR_total_processing_time))
+         return 'ELP Configurations Successfully Processed'
 
       except TimeoutError as timeout:
          print('TIMEOUTERR - Custom Timeout Error')
@@ -184,7 +189,8 @@ def Process_ELP_Orders(request):
             Upload_Response_GCS(vAR_output_csv)
 
             # Upload response to S3 bucket
-            Upload_Response_To_S3(vAR_output_copy,vAR_file_name)
+            ResponsePathValidation(vAR_output_copy)
+            
 
          vAR_process_end_time = datetime.datetime.now().replace(microsecond=0)
          vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
@@ -200,12 +206,7 @@ def Process_ELP_Orders(request):
 
          return {'Error Message':'### Custom Timeout Error Occured'}
 
-      except ConnectionError as connectionerror:
-         print('HTTPCONNECTIONERR - Http connection error occurred')
-         print('Error Traceback - '+str(traceback.print_exc()))
-         print('Number of Processed configs - ',len(vAR_processed_configs))
-         
-         return {'Error Message':'### ConnectionError Occured'}
+      
       
       except BaseException as e:
          print('BASEEXCEPTIONERR - '+str(e))
@@ -214,7 +215,9 @@ def Process_ELP_Orders(request):
          vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
          f.write('\n\nEnd Time - {}\nTotal Processing Time - {}'.format(vAR_process_end_time,vAR_total_processing_time))
          print('Number of Processed configs - ',len(vAR_processed_configs))
-         
+         vAR_err_response_dict = {}
+         vAR_err_response_dict['ERROR_MESSAGE'] = str(e)
+         InsertErrorLog(vAR_err_response_dict)
          return {'Error Message':'### '+str(e)}
 
       
@@ -239,3 +242,65 @@ def PreProcessRequest(vAR_batch_elp_configuration_raw):
 
 
 
+# This method will return latest csv filename in request path folder
+def RequestFileValidation():
+  vAR_get_last_modified = lambda obj: int(obj['LastModified'].strftime('%s'))
+  vAR_s3 = boto3.client('s3')
+  vAR_objs = vAR_s3.list_objects_v2(Bucket=os.environ["S3_REQUEST_BUCKET_NAME"], Prefix=os.environ["AWS_REQUEST_PATH"])
+  print('Return values in RequestFileValidation - ',vAR_objs)
+  if vAR_objs['KeyCount']>1:
+     message = "More than one file found in the request path -s3://"+os.environ["S3_REQUEST_BUCKET_NAME"]+'/'+vAR_objs['Prefix']
+     raise Exception (message)
+  if 'Contents' in vAR_objs.keys():
+     vAR_objs = vAR_objs['Contents']
+  else:
+     vAR_err_message = "Request folder not found - s3://"+os.environ["S3_REQUEST_BUCKET_NAME"]+'/'+os.environ["AWS_REQUEST_PATH"]
+     raise Exception(vAR_err_message)
+  vAR_filelist =[]
+  vAR_request_file_path = ''
+
+    
+  for obj in sorted(vAR_objs,key=vAR_get_last_modified,reverse=True):
+    
+    if obj['Key'].endswith('.CSV') or obj['Key'].endswith('.csv'):
+      if obj['Size']==0:
+        message = "Empty file found(file size 0 bytes) in the request path -s3://"+os.environ["S3_REQUEST_BUCKET_NAME"]+'/'+str(obj['Key'])
+        raise Exception (message)
+      else:
+        vAR_filelist.append(obj['Key'])
+        if len(vAR_filelist)>0:
+          vAR_request_file_path = vAR_filelist[0]
+          return vAR_request_file_path
+
+
+  return vAR_request_file_path
+
+
+def ResponsePathValidation(vAR_output_copy):
+  vAR_s3 = boto3.client('s3')
+  vAR_counter = 0
+  vAR_objs = vAR_s3.list_objects_v2(Bucket=os.environ["S3_RESPONSE_BUCKET_NAME"], Prefix=os.environ["AWS_RESPONSE_PATH"])
+  print('Return values in ResponsePathValidation - ',vAR_objs)
+  if 'Contents' in vAR_objs.keys():
+     vAR_objs = vAR_objs['Contents']
+  else:
+     Upload_Response_To_S3(vAR_output_copy)
+     vAR_err_message = "Response folder not found - s3://"+os.environ["S3_RESPONSE_BUCKET_NAME"]+'/'+os.environ["AWS_RESPONSE_PATH"]+". So, created response folder"
+     raise Exception(vAR_err_message)
+  for obj in vAR_objs:
+    print('OBJ RESPONSE KEY - ',obj['Key'])
+    vAR_obj_key = obj['Key']
+    vAR_obj_file = vAR_obj_key.split('/')[-1]
+    vAR_obj_key =  vAR_obj_key.replace(vAR_obj_file,'')
+
+    if vAR_obj_key!=os.environ["AWS_RESPONSE_PATH"]:
+       pass
+    else:
+       vAR_counter = vAR_counter+1
+       
+  if vAR_counter>0:
+     Upload_Response_To_S3(vAR_output_copy)
+  else:
+     Upload_Response_To_S3(vAR_output_copy)
+     vAR_err_message = "Response folder not found - s3://"+os.environ["S3_RESPONSE_BUCKET_NAME"]+'/'+os.environ["AWS_RESPONSE_PATH"]+". So, created response folder"
+     raise Exception(vAR_err_message)

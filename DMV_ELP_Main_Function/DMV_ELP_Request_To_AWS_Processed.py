@@ -23,11 +23,11 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 import boto3
 import os
 
-def Move_Request_AWS_Processed():
+def Move_Request_AWS_Processed(vAR_s3_request_path):
    vAR_s3_client = boto3.client('s3')
-   vAR_bucket_name = os.environ['S3_BUCKET_NAME']
-   vAR_source_file_key = vAR_bucket_name+'/'+os.environ["AWS_REQUEST_PATH"]
-   vAR_source_file_name = os.environ["AWS_REQUEST_PATH"].split('/')[-1]
+   vAR_bucket_name = os.environ['S3_REQUEST_BUCKET_NAME']
+   vAR_source_file_key = vAR_bucket_name+'/'+vAR_s3_request_path
+   vAR_source_file_name = vAR_s3_request_path.split('/')[-1]
    print('SourceFileName - ',vAR_source_file_name)
    vAR_dest_file_key = os.environ["AWS_REQUEST_PROCESSED_PATH"]+'/'+vAR_source_file_name
    vAR_response = vAR_s3_client.copy_object(
@@ -38,7 +38,7 @@ def Move_Request_AWS_Processed():
    print('Copy file response - ',vAR_response)
    if vAR_response['ResponseMetadata']['HTTPStatusCode']==200:
       print('Request File copied into processed folder')
-      vAR_delete_response = vAR_s3_client.delete_object(Bucket=vAR_bucket_name,Key=os.environ["AWS_REQUEST_PATH"])
+      vAR_delete_response = vAR_s3_client.delete_object(Bucket=vAR_bucket_name,Key=vAR_s3_request_path)
       print('Request file successfully deleted from source location')
    else:
       raise Exception('Request File not copied to processed folder in s3.. Kindly check copy file response')

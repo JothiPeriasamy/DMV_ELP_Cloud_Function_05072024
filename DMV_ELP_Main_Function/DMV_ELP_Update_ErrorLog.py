@@ -43,7 +43,8 @@ def GetLastErrorId():
 
 
 def InsertErrorLog(vAR_response_dict):
-   del vAR_response_dict['Process Time']
+   if 'Process Time' in vAR_response_dict.keys():
+      del vAR_response_dict['Process Time']
    vAR_result = {}
    created_at = []
    created_by = []
@@ -61,7 +62,8 @@ def InsertErrorLog(vAR_response_dict):
    vAR_result['ERROR_CODE'] = vAR_response_dict['ERROR_MESSAGE']
    vAR_result['ERROR_CONTEXT'] = str(vAR_response_dict)
    vAR_result['ERROR_MESSAGE'] = vAR_response_dict['ERROR_MESSAGE']
-   vAR_result['CONFIGURATION'] = vAR_response_dict['LICENSE_PLATE_CONFIG']
+   if 'LICENSE_PLATE_CONFIG' in vAR_response_dict.keys():
+      vAR_result['CONFIGURATION'] = vAR_response_dict['LICENSE_PLATE_CONFIG']
 
    vAR_df = pd.DataFrame(vAR_result,index=[0])
    vAR_df['CREATED_DT'] = created_at
