@@ -84,6 +84,9 @@ def ELP_Validation(request):
                 response_json["BADWORDS_CLASSIFICATION"] = vAR_result_message
                 response_json["RECOMMENDATION"] = "Denied"
                 response_json["REASON"] = "BADWORD"
+                response_json["MODEL"] = None
+                response_json["MODEL_PREDICTION"] = {"PROFANITY_CLASSIFICATION":[{"IDENTITY_HATE":None,"INSULT":None,"OBSCENE":None,"SEVERE_TOXIC":None,
+                "THREAT":None,"TOXIC":None}],"SUM_OF_ALL_CATEGORIES":None}
                 return response_json
 
             # FWord Guideline check
@@ -93,6 +96,9 @@ def ELP_Validation(request):
                 response_json["GUIDELINE_FWORD_CLASSIFICATION"] = vAR_fword_validation_message
                 response_json["RECOMMENDATION"] = "Denied"
                 response_json["REASON"] = "CONFIGURATION FOUND IN FWORD GUIDELINES"
+                response_json["MODEL"] = None
+                response_json["MODEL_PREDICTION"] = {"PROFANITY_CLASSIFICATION":[{"IDENTITY_HATE":None,"INSULT":None,"OBSCENE":None,"SEVERE_TOXIC":None,
+                "THREAT":None,"TOXIC":None}],"SUM_OF_ALL_CATEGORIES":None}
                 return response_json
             elif not vAR_fword_flag:
                 response_json["GUIDELINE_FWORD_CLASSIFICATION"] = vAR_fword_validation_message
@@ -106,6 +112,9 @@ def ELP_Validation(request):
                 response_json["PREVIOUSLY_DENIED_CLASSIFICATION"] = vAR_previously_denied_validation_message
                 response_json["RECOMMENDATION"] = "Denied"
                 response_json["REASON"] = "CONFIGURATION FOUND IN PREVIOUSLY DENIED CONFIGURATIONS"
+                response_json["MODEL"] = None
+                response_json["MODEL_PREDICTION"] = {"PROFANITY_CLASSIFICATION":[{"IDENTITY_HATE":None,"INSULT":None,"OBSCENE":None,"SEVERE_TOXIC":None,
+                "THREAT":None,"TOXIC":None}],"SUM_OF_ALL_CATEGORIES":None}
                 return response_json
             elif not vAR_pdc_flag:
                 response_json["PREVIOUSLY_DENIED_CLASSIFICATION"] = vAR_previously_denied_validation_message
@@ -119,6 +128,9 @@ def ELP_Validation(request):
                 response_json["RULE_BASED_CLASSIFICATION"] = " Similar to " +vAR_pattern+ " Pattern"
                 response_json["RECOMMENDATION"] = "Denied"
                 response_json["REASON"] = "DENIED PATTERN"
+                response_json["MODEL"] = None
+                response_json["MODEL_PREDICTION"] = {"PROFANITY_CLASSIFICATION":[{"IDENTITY_HATE":None,"INSULT":None,"OBSCENE":None,"SEVERE_TOXIC":None,
+                "THREAT":None,"TOXIC":None}],"SUM_OF_ALL_CATEGORIES":None}
                 return response_json
 
             elif vAR_regex_result:

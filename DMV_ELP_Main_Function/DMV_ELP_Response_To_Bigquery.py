@@ -64,7 +64,7 @@ def ReadResponseTable():
     vAR_client = bigquery.Client()
     vAR_response_table_name = "DMV_ELP_MLOPS_RESPONSE"
     vAR_sql =(
-        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table_name+"`"+ " where date(created_dt)=current_date() order by REQUEST_ID"
+        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table_name+"`"+ " where date(created_dt)=current_date() order by PLATE_TYPE_COUNT DESC,LICENSE_PLATE_DESC DESC,LICENSE_PLATE_CONFIG ASC"
     )
 
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()

@@ -237,6 +237,7 @@ def PreProcessRequest(vAR_batch_elp_configuration_raw):
  'REGISTERED OWNER CITY':'REGISTERED_OWNER_CITY','REGISTERED OWNER ZIP':'REGISTERED_OWNER_ZIP','ORDER PRINTED DATE':'ORDER_PRINTED_DATE',
  'TECH ID':'TECH_ID','ORDER PAYMENT DATE':'ORDER_PAYMENT_DATE'}, inplace = True)
    vAR_batch_elp_configuration_raw["ORDER_GROUP_ID"] = vAR_batch_elp_configuration_raw["ORDER_NUMBER_CODE"].str[:-1]
+   vAR_batch_elp_configuration_raw['PLATE_TYPE_COUNT'] = vAR_batch_elp_configuration_raw.groupby('LICENSE_PLATE_DESC')['LICENSE_PLATE_DESC'].transform('count')
    
    return vAR_batch_elp_configuration_raw
 

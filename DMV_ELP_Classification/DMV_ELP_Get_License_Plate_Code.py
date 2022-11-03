@@ -40,10 +40,20 @@ def GetPlateCode(vAR_license_plate_desc):
     if vAR_result_count==1:
         for row in vAR_results:
             vAR_plate_code = row.get('PLATE_TYPE_CODE')
+            
     elif vAR_result_count==0:
-        vAR_error_message = "PLATE CODE Not Found for given configuration"
+        vAR_plate_code = "N/A"
+        
+        vAR_error_message = "PLATE CODE Not Found for given configuration.So, assigning N/A"
     elif vAR_result_count>1:
+        
         vAR_error_message = "More than one PLATE CODE Found for given configuration"
+
+    if len(vAR_license_plate_desc)>=7:
+        print('vAR_license_plate_desc - ',vAR_license_plate_desc)
+        if vAR_license_plate_desc[0:7].upper()=="VETERAN":
+            print('vAR_license substr true- ',vAR_license_plate_desc[0:8])
+            vAR_plate_code = "V"
     
     return vAR_plate_code,vAR_error_message
     

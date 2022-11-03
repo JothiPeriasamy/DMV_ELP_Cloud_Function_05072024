@@ -25,6 +25,9 @@ import json
 import requests
 from DMV_ELP_Mapping_Response_To_Bigquery import Process_API_Response
 import os
+import urllib
+import google.auth.transport.requests
+import google.oauth2.id_token
 
 def Process_ELP_Request(vAR_batch_elp_configuration,elp_idx,vAR_request_url,vAR_headers):
 
@@ -46,9 +49,32 @@ def Process_ELP_Request(vAR_batch_elp_configuration,elp_idx,vAR_request_url,vAR_
 
 
    print('Payload - ',vAR_payload)
-   vAR_request = requests.post(vAR_request_url, data=json.dumps(vAR_payload),headers=vAR_headers)
+
+   vAR_endpoint = vAR_request_url
+   vAR_audience = vAR_request_url
+
+   vAR_payload = json.dumps(vAR_payload)
+   # Convert to String
+   vAR_payload = str(vAR_payload)
+
+   # Convert string to byte
+   vAR_payload = vAR_payload.encode('utf-8')
+
+   vAR_auth_request = urllib.request.Request(vAR_endpoint,data=vAR_payload)
+
+   vAR_auth_req = google.auth.transport.requests.Request()
+   vAR_id_token = google.oauth2.id_token.fetch_id_token(vAR_auth_req, vAR_audience)
+
+   vAR_auth_request.add_header("Authorization", f"Bearer {vAR_id_token}")
+   vAR_auth_request.add_header("Content-Type", "application/json; charset=utf-8")
+
+   vAR_request = urllib.request.urlopen(vAR_auth_request)
+
+   # vAR_request = requests.post(vAR_request_url, data=json.dumps(vAR_payload),headers=vAR_headers)
    
-   vAR_result = vAR_request.text #Getting response as str
+   # vAR_result = vAR_request.text #Getting response as str
+
+   vAR_result = vAR_request.read()
    print('vAR_result - ',vAR_result)
    vAR_result = json.loads(vAR_result) #converting str to dict
    if len(vAR_result["ERROR_MESSAGE"])>0:
