@@ -35,7 +35,7 @@ from DMV_ELP_Pattern_Denial import Pattern_Denial
 from DMV_ELP_BERT_Model_Prediction import BERT_Model_Result
 from DMV_ELP_LSTM_Model_Prediction import LSTM_Model_Result
 from DMV_ELP_Get_License_Plate_Code import GetPlateCode
-
+from DMV_ELP_Get_Max_Plate_Count import GetMaxPlateTypeCount
 
 def ELP_Validation(request):
     
@@ -43,6 +43,10 @@ def ELP_Validation(request):
     vAR_error_message = {}
     request_json = request.get_json()
     response_json = request_json.copy()
+    vAR_max_plate_type_count = GetMaxPlateTypeCount()
+    
+
+
     try:
         # To resolve container error(TypeError: Descriptors cannot not be created directly)
         os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION']='python'
@@ -70,6 +74,12 @@ def ELP_Validation(request):
             # It can be changed later
             vAR_model = os.environ["MODEL"]
             response_json["SG_ID"] = vAR_sg_id
+
+            if vAR_max_plate_type_count is not None and request_json["PLATE_TYPE_COUNT"]==vAR_max_plate_type_count :
+                response_json["PLATE_TYPE_MAX_COUNT_FLG"] = 1
+            else:
+                response_json["PLATE_TYPE_MAX_COUNT_FLG"] = 0
+                
             response_json["PLATE_CODE"] = vAR_plate_code
             response_json["ERROR_MESSAGE"] = vAR_error_message["Error Message"]
 

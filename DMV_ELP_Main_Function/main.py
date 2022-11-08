@@ -37,7 +37,7 @@ from DMV_ELP_Request_Upload_To_GCS import Upload_Request_GCS
 from DMV_ELP_Response_To_S3 import Upload_Response_To_S3
 from DMV_ELP_Response_To_Bigquery import Insert_Response_to_Bigquery,ReadResponseTable
 from DMV_ELP_Request_To_Bigquery import Insert_Request_To_Bigquery
-from DMV_ELP_Bigquery_Request_Validation import GetCurrentDateRequestCount,ReadNotProcessedRequestData,InsertRequesResponseMetaData,GetMetadataTotalRecordsToProcess,GetCurrentDateResponseCount
+from DMV_ELP_Bigquery_Request_Validation import GetCurrentDateRequestCount,ReadNotProcessedRequestData,InsertRequesResponseMetaData,GetMetadataTotalRecordsToProcess,GetCurrentDateResponseCount,GetRequestFileName
 from DMV_ELP_Request_Delete import DeleteProcessedConfigs
 from DMV_ELP_Update_Metadata_Table import UpdateMetadataTable
 from DMV_ELP_Update_ErrorLog import InsertErrorLog
@@ -46,6 +46,8 @@ from DMV_ELP_Process_Request import Process_ELP_Request
 from DMV_ELP_Response_To_GCS import Upload_Response_GCS
 from DMV_ELP_Response_To_S3 import Upload_Response_To_S3
 from DMV_ELP_Request_To_AWS_Processed import Move_Request_AWS_Processed
+from DMV_ELP_Audit_Log import Insert_Audit_Log
+
 
 def Process_ELP_Orders(request):
 
@@ -90,7 +92,7 @@ def Process_ELP_Orders(request):
             vAR_batch_elp_configuration = PreProcessRequest(vAR_batch_elp_configuration_raw)
             vAR_number_of_configuration = len(vAR_batch_elp_configuration)
             Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configuration)
-            InsertRequesResponseMetaData(vAR_number_of_configuration)
+            InsertRequesResponseMetaData(vAR_number_of_configuration,vAR_s3_url)
 
          vAR_configuration_df = ReadNotProcessedRequestData()
          vAR_configuration_df_len = len(vAR_configuration_df)
@@ -100,7 +102,6 @@ def Process_ELP_Orders(request):
          if vAR_current_date_request_count==0 and vAR_configuration_df_len>0:
             Upload_Request_GCS(vAR_batch_elp_configuration)
             Move_Request_AWS_Processed(vAR_s3_request_path)
-
          
          UpdateMetadataTable()
 
@@ -161,7 +162,9 @@ def Process_ELP_Orders(request):
             Upload_Response_GCS(vAR_output_csv)
 
             # Upload response to S3 bucket
-            ResponsePathValidation(vAR_output_copy)
+            ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count)
+
+            
             
          
 
@@ -189,7 +192,9 @@ def Process_ELP_Orders(request):
             Upload_Response_GCS(vAR_output_csv)
 
             # Upload response to S3 bucket
-            ResponsePathValidation(vAR_output_copy)
+            ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count)
+
+            
             
 
          vAR_process_end_time = datetime.datetime.now().replace(microsecond=0)
@@ -218,6 +223,27 @@ def Process_ELP_Orders(request):
          vAR_err_response_dict = {}
          vAR_err_response_dict['ERROR_MESSAGE'] = str(e)
          InsertErrorLog(vAR_err_response_dict)
+
+         if "Response Path Error " in str(e):
+            print("Response path error in main - ",str(e))
+            # Audit trial log
+      
+            vAR_audit_log_df = pd.DataFrame()
+
+            vAR_s3_url = GetRequestFileName()
+            vAR_audit_log_df["AUDIT_DATE"] = 1*[date.today()]
+            vAR_audit_log_df["REQUEST_DATE"] = 1*[date.today()]
+            vAR_audit_log_df["TOTAL_ELP_ORDERS_IN_REQUEST"] = 1*[vAR_records_to_process]
+            vAR_audit_log_df["TOTAL_ELP_ORDERS_IN_RESPONSE"] = 1*[vAR_response_count]
+            vAR_audit_log_df["TOTAL_ELP_ORDER_PROCESSED"] = 1*[vAR_response_count] 
+            vAR_audit_log_df["REQUEST_FILE_NAME"] = 1*[vAR_s3_url]
+            vAR_audit_log_df["SYSTEM_ENVIRONMENT"] = 1*[os.environ["SYSTEM_ENVIRONMENT"]]
+
+            vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["NO"]
+            vAR_audit_log_df["ERROR_MESSAGE"] = str(e)
+            Insert_Audit_Log(vAR_audit_log_df)
+            print("Audit Log Table Inserted")
+
          return {'Error Message':'### '+str(e)}
 
       
@@ -277,31 +303,70 @@ def RequestFileValidation():
   return vAR_request_file_path
 
 
-def ResponsePathValidation(vAR_output_copy):
-  vAR_s3 = boto3.client('s3')
-  vAR_counter = 0
-  vAR_objs = vAR_s3.list_objects_v2(Bucket=os.environ["S3_RESPONSE_BUCKET_NAME"], Prefix=os.environ["AWS_RESPONSE_PATH"])
-  print('Return values in ResponsePathValidation - ',vAR_objs)
-  if 'Contents' in vAR_objs.keys():
-     vAR_objs = vAR_objs['Contents']
-  else:
-     Upload_Response_To_S3(vAR_output_copy)
-     vAR_err_message = "Response folder not found - s3://"+os.environ["S3_RESPONSE_BUCKET_NAME"]+'/'+os.environ["AWS_RESPONSE_PATH"]+". So, created response folder"
-     raise Exception(vAR_err_message)
-  for obj in vAR_objs:
-    print('OBJ RESPONSE KEY - ',obj['Key'])
-    vAR_obj_key = obj['Key']
-    vAR_obj_file = vAR_obj_key.split('/')[-1]
-    vAR_obj_key =  vAR_obj_key.replace(vAR_obj_file,'')
+def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count):
 
-    if vAR_obj_key!=os.environ["AWS_RESPONSE_PATH"]:
-       pass
-    else:
-       vAR_counter = vAR_counter+1
-       
-  if vAR_counter>0:
-     Upload_Response_To_S3(vAR_output_copy)
-  else:
-     Upload_Response_To_S3(vAR_output_copy)
-     vAR_err_message = "Response folder not found - s3://"+os.environ["S3_RESPONSE_BUCKET_NAME"]+'/'+os.environ["AWS_RESPONSE_PATH"]+". So, created response folder"
-     raise Exception(vAR_err_message)
+   
+   # Audit trial log
+   
+   vAR_audit_log_df = pd.DataFrame()
+
+   vAR_s3_url = GetRequestFileName()
+   vAR_audit_log_df["AUDIT_DATE"] = 1*[date.today()]
+   vAR_audit_log_df["REQUEST_DATE"] = 1*[date.today()]
+   vAR_audit_log_df["TOTAL_ELP_ORDERS_IN_REQUEST"] = 1*[vAR_records_to_process]
+   vAR_audit_log_df["TOTAL_ELP_ORDERS_IN_RESPONSE"] = 1*[vAR_response_count]
+   vAR_audit_log_df["TOTAL_ELP_ORDER_PROCESSED"] = 1*[vAR_response_count] 
+   vAR_audit_log_df["REQUEST_FILE_NAME"] = 1*[vAR_s3_url]
+   vAR_audit_log_df["SYSTEM_ENVIRONMENT"] = 1*[os.environ["SYSTEM_ENVIRONMENT"]]
+
+   vAR_s3 = boto3.client('s3')
+   vAR_counter = 0
+   vAR_objs = vAR_s3.list_objects_v2(Bucket=os.environ["S3_RESPONSE_BUCKET_NAME"], Prefix=os.environ["AWS_RESPONSE_PATH"])
+   print('Return values in ResponsePathValidation - ',vAR_objs)
+   if 'Contents' in vAR_objs.keys():
+      vAR_objs = vAR_objs['Contents']
+   else:
+
+      vAR_response_path = Upload_Response_To_S3(vAR_output_copy)
+
+      vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["YES"]
+      vAR_audit_log_df["RESPONSE_FILE_NAME"] = 1*[vAR_response_path]
+      Insert_Audit_Log(vAR_audit_log_df)
+
+      vAR_err_message = "Response folder not found - s3://"+os.environ["S3_RESPONSE_BUCKET_NAME"]+'/'+os.environ["AWS_RESPONSE_PATH"]+". So, created response folder"
+      raise Exception(vAR_err_message)
+   for obj in vAR_objs:
+      print('OBJ RESPONSE KEY - ',obj['Key'])
+      vAR_obj_key = obj['Key']
+      vAR_obj_file = vAR_obj_key.split('/')[-1]
+      vAR_obj_key =  vAR_obj_key.replace(vAR_obj_file,'')
+
+      if os.environ["AWS_RESPONSE_PATH"] not in vAR_obj_key:
+         pass
+      else:
+         vAR_counter = vAR_counter+1
+         
+   if vAR_counter>0:
+
+      vAR_response_path = Upload_Response_To_S3(vAR_output_copy)
+
+      
+      vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["YES"]
+      vAR_audit_log_df["RESPONSE_FILE_NAME"] = 1*[vAR_response_path]
+      Insert_Audit_Log(vAR_audit_log_df)
+
+
+   else:
+
+      vAR_response_path = Upload_Response_To_S3(vAR_output_copy)
+   
+      vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["YES"]
+      vAR_audit_log_df["RESPONSE_FILE_NAME"] = 1*[vAR_response_path]
+      Insert_Audit_Log(vAR_audit_log_df)  
+      
+      vAR_err_message = "Response folder not found - s3://"+os.environ["S3_RESPONSE_BUCKET_NAME"]+'/'+os.environ["AWS_RESPONSE_PATH"]+". So, created response folder"
+      raise Exception(vAR_err_message)
+  
+     
+
+

@@ -17,30 +17,42 @@ ____________________________________|_________________|____________|__________|_
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------
-
 """
 
-import boto3
-from io import StringIO
+
 import datetime
+from google.cloud import bigquery
 import os
 
-def Upload_Response_To_S3(vAR_result):
-   try:
-      vAR_utc_time = datetime.datetime.utcnow()
-      vAR_bucket_name = os.environ['S3_RESPONSE_BUCKET_NAME']
-      vAR_csv_buffer = StringIO()
-      vAR_result.to_csv(vAR_csv_buffer)
-      vAR_s3_resource = boto3.resource('s3',aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
-      vAR_s3_resource.Object(vAR_bucket_name, os.environ["AWS_RESPONSE_PATH"]+vAR_utc_time.strftime('%Y%m%d')+'/'+vAR_utc_time.strftime('%H%M%S')+'.csv').put(Body=vAR_csv_buffer.getvalue())
-      print('bucket - ',vAR_bucket_name)
-      vAR_response_path = os.environ["AWS_RESPONSE_PATH"]+vAR_utc_time.strftime('%Y%m%d')+'/'+vAR_utc_time.strftime('%H%M%S')+'.csv' 
-      print('path - ',vAR_response_path)
-      print('API Response successfully saved into S3 bucket')
-      vAR_response_path = "s3://"+vAR_bucket_name+"/"+vAR_response_path
-      return vAR_response_path
-   
-   except BaseException as exception:
-      vAR_exception_message = str(exception)
-      print("Error in Upload Response to S3 - ",vAR_exception_message)
-      raise Exception("Response Path Error "+vAR_exception_message)
+def Insert_Audit_Log(vAR_df):
+    created_at = []
+    created_by = []
+    updated_at = []
+    updated_by = []
+    df_length = len(vAR_df)
+    created_at += df_length * [datetime.datetime.utcnow()]
+    created_by += df_length * [os.environ['GCP_USER']]
+    updated_by += df_length * [os.environ['GCP_USER']]
+    updated_at += df_length * [datetime.datetime.utcnow()]
+    vAR_df['CREATED_DT'] = created_at
+    vAR_df['CREATED_USER'] = created_by
+    vAR_df['UPDATED_DT'] = updated_at
+    vAR_df['UPDATED_USER'] = updated_by
+
+    # Load client
+    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
+
+    # Define table name, in format dataset.table_name
+    table = os.environ["GCP_BQ_SCHEMA_NAME"]+'.DMV_ELP_AUDIT_LOG'
+    job_config = bigquery.LoadJobConfig(autodetect=True,write_disposition="WRITE_APPEND",source_format=bigquery.SourceFormat.CSV,allow_quoted_newlines = True)
+    # Load data to BQ
+    job = client.load_table_from_dataframe(vAR_df, table,job_config=job_config)
+
+    job.result()  # Wait for the job to complete.
+    table_id = os.environ["GCP_PROJECT_ID"]+'.'+table
+    table = client.get_table(table_id)  # Make an API request.
+    print(
+            "Loaded {} rows and {} columns to {}".format(
+                table.num_rows, len(table.schema), table_id
+            )
+        )

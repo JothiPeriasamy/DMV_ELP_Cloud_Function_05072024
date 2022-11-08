@@ -20,27 +20,20 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 
 """
 
-import boto3
-from io import StringIO
+from google.cloud import bigquery
+import pandas as pd
 import datetime
 import os
 
-def Upload_Response_To_S3(vAR_result):
-   try:
-      vAR_utc_time = datetime.datetime.utcnow()
-      vAR_bucket_name = os.environ['S3_RESPONSE_BUCKET_NAME']
-      vAR_csv_buffer = StringIO()
-      vAR_result.to_csv(vAR_csv_buffer)
-      vAR_s3_resource = boto3.resource('s3',aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
-      vAR_s3_resource.Object(vAR_bucket_name, os.environ["AWS_RESPONSE_PATH"]+vAR_utc_time.strftime('%Y%m%d')+'/'+vAR_utc_time.strftime('%H%M%S')+'.csv').put(Body=vAR_csv_buffer.getvalue())
-      print('bucket - ',vAR_bucket_name)
-      vAR_response_path = os.environ["AWS_RESPONSE_PATH"]+vAR_utc_time.strftime('%Y%m%d')+'/'+vAR_utc_time.strftime('%H%M%S')+'.csv' 
-      print('path - ',vAR_response_path)
-      print('API Response successfully saved into S3 bucket')
-      vAR_response_path = "s3://"+vAR_bucket_name+"/"+vAR_response_path
-      return vAR_response_path
-   
-   except BaseException as exception:
-      vAR_exception_message = str(exception)
-      print("Error in Upload Response to S3 - ",vAR_exception_message)
-      raise Exception("Response Path Error "+vAR_exception_message)
+
+def GetMaxPlateTypeCount():
+    vAR_client = bigquery.Client()
+    vAR_table_name = "DMV_ELP_REQUEST"
+    vAR_query_job = vAR_client.query(
+        " SELECT MAX(PLATE_TYPE_COUNT) as MAX_PLATE_TYPE_COUNT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
+    )
+
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    for row in vAR_results:
+        vAR_max_count = row.get('MAX_PLATE_TYPE_COUNT')
+    return vAR_max_count

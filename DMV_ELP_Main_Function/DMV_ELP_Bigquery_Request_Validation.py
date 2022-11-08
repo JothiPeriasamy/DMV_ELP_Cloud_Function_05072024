@@ -53,7 +53,7 @@ def ReadNotProcessedRequestData():
     return vAR_df
 
 
-def InsertRequesResponseMetaData(vAR_number_of_configuration):
+def InsertRequesResponseMetaData(vAR_number_of_configuration,vAR_s3_url):
    vAR_df = pd.DataFrame()
    vAR_rownum = 1
    if GetMetadatarownum() is not None:
@@ -64,6 +64,7 @@ def InsertRequesResponseMetaData(vAR_number_of_configuration):
    vAR_df['TOTAL_NUMBER_OF_ORDERS'] = 1*[vAR_number_of_configuration]
    vAR_df['CREATED_DT'] = 1*[datetime.datetime.utcnow()]
    vAR_df['CREATED_USER'] = 1*[os.environ["GCP_USER"]]
+   vAR_df['REQUEST_FILE_NAME'] = 1*[vAR_s3_url]
    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
 
    # Define table name, in format dataset.table_name
@@ -119,3 +120,16 @@ def GetMetadataTotalRecordsToProcess():
     for row in vAR_results:
         vAR_total_orders = row.get('TOTAL_NUMBER_OF_ORDERS')
     return vAR_total_orders
+
+
+def GetRequestFileName():
+    vAR_client = bigquery.Client()
+    vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
+    vAR_query_job = vAR_client.query(
+        " SELECT REQUEST_FILE_NAME FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
+    )
+
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    for row in vAR_results:
+        vAR_request_file_name = row.get('REQUEST_FILE_NAME')
+    return vAR_request_file_name
