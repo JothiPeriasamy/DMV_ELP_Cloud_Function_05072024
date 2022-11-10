@@ -115,28 +115,40 @@ def Process_ELP_Orders(request):
 
          vAR_output_result_objects = [pool.apply_async(Process_ELP_Request,args=(vAR_configuration_df,elp_idx,vAR_request_url,vAR_headers)) for elp_idx in range(vAR_configuration_df_len)]
 
-         vAR_results = []
          for vAR_result in vAR_output_result_objects:
             print('Time taking in for loop - ',time.time()-vAR_timeout_start)
             if (time.time()-vAR_timeout_start)<vAR_timeout_secs:
                f.write(vAR_result.get()["Process Time"])
                
-               if len(vAR_result.get()['ERROR_MESSAGE'])>0:
-                  InsertErrorLog(vAR_result.get())
+               
+               # If there is any error in insert response method exception block will log the error message for that configuration. So, trying to delete request table record in finally block
+               try:      
+                  if len(vAR_result.get()['ERROR_MESSAGE'])>0:
+                     InsertErrorLog(vAR_result.get())
                   vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
                   vAR_last_processed_record = vAR_result.get()['LICENSE_PLATE_CONFIG']
+                  if 'Process Time' in vAR_result.get().keys():
+                     del vAR_result.get()['Process Time']
+                  Insert_Response_to_Bigquery(pd.DataFrame(vAR_result.get(),index=[0]))
+                  print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' Inserted into response table')
                   
-               if 'Process Time' in vAR_result.get().keys():
-                  del vAR_result.get()['Process Time']
-               vAR_results.append(vAR_result.get())
-               Insert_Response_to_Bigquery(pd.DataFrame(vAR_result.get(),index=[0]))
-               print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' Inserted into response table')
-               DeleteProcessedConfigs()
-               print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' deleted from request table')
-               vAR_processed_configs.append(vAR_result.get()['LICENSE_PLATE_CONFIG'])
-               vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
-               vAR_last_processed_record = vAR_result.get()['LICENSE_PLATE_CONFIG']
+               except BaseException as e:
+                  print('BASEEXCEPTIONERR IN INSERT RESPONSE AND DELETE REQUEST - '+str(e))
+                  print('Error Traceback - '+str(traceback.print_exc()))
                   
+                  vAR_err_response_dict = {}
+                  vAR_err_response_dict['ERROR_MESSAGE'] = str(e)
+                  vAR_err_response_dict['ERROR_CONTEXT'] = str(vAR_result.get())
+                  vAR_err_response_dict['LICENSE_PLATE_CONFIG'] = vAR_result.get()['LICENSE_PLATE_CONFIG']
+                  InsertErrorLog(vAR_err_response_dict)
+               finally:
+                  DeleteProcessedConfigs(vAR_result.get()['LICENSE_PLATE_CONFIG'])
+                  print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' deleted from request table')
+                  vAR_processed_configs.append(vAR_result.get()['LICENSE_PLATE_CONFIG'])
+                  vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
+                  vAR_last_processed_record = vAR_result.get()['LICENSE_PLATE_CONFIG']
+                     
+                           
             else:
                raise TimeoutError('Timeout Error inside result iteration')
             
@@ -152,9 +164,11 @@ def Process_ELP_Orders(request):
 
          vAR_records_to_process = GetMetadataTotalRecordsToProcess()
          vAR_response_count = GetCurrentDateResponseCount()
-         print('records to process - ',vAR_records_to_process)
+         vAR_current_date_request_count =  GetCurrentDateRequestCount()
+         print('records to process from metadata table- ',vAR_records_to_process)
          print('response_count - ', vAR_response_count)
-         if vAR_records_to_process==vAR_response_count and vAR_configuration_df_len!=0:
+         print('request_table_count - ', vAR_current_date_request_count)
+         if vAR_current_date_request_count==0 and vAR_configuration_df_len!=0:
             vAR_output_copy = ReadResponseTable()
             vAR_output_csv = vAR_output_copy.to_csv()
             
@@ -182,9 +196,11 @@ def Process_ELP_Orders(request):
          # Since custom timeout occurs, checking for response count in response table and copy resullts to gcs&s3
          vAR_records_to_process = GetMetadataTotalRecordsToProcess()
          vAR_response_count = GetCurrentDateResponseCount()
+         vAR_current_date_request_count =  GetCurrentDateRequestCount()
          print('records to process - ',vAR_records_to_process)
          print('response_count - ', vAR_response_count)
-         if vAR_records_to_process==vAR_response_count:
+         print('request_table_count - ', vAR_current_date_request_count)
+         if vAR_current_date_request_count==0 and vAR_configuration_df_len!=0:
             vAR_output_copy = ReadResponseTable()
             vAR_output_csv = vAR_output.to_csv()
             
@@ -275,9 +291,9 @@ def RequestFileValidation():
   vAR_s3 = boto3.client('s3')
   vAR_objs = vAR_s3.list_objects_v2(Bucket=os.environ["S3_REQUEST_BUCKET_NAME"], Prefix=os.environ["AWS_REQUEST_PATH"])
   print('Return values in RequestFileValidation - ',vAR_objs)
-  if vAR_objs['KeyCount']>1:
-     message = "More than one file found in the request path -s3://"+os.environ["S3_REQUEST_BUCKET_NAME"]+'/'+vAR_objs['Prefix']
-     raise Exception (message)
+#   if vAR_objs['KeyCount']>1:
+#      message = "More than one file found in the request path -s3://"+os.environ["S3_REQUEST_BUCKET_NAME"]+'/'+vAR_objs['Prefix']
+#      raise Exception (message)
   if 'Contents' in vAR_objs.keys():
      vAR_objs = vAR_objs['Contents']
   else:

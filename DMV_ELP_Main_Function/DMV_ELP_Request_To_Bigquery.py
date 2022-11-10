@@ -49,6 +49,7 @@ def Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configu
    # Define table name, in format dataset.table_name
    table = os.environ["GCP_BQ_SCHEMA_NAME"]+'.'+'DMV_ELP_REQUEST'
    job_config = bigquery.LoadJobConfig(autodetect=True,write_disposition="WRITE_APPEND",source_format=bigquery.SourceFormat.CSV)
+   # job_config = bigquery.LoadJobConfig(autodetect=True,write_disposition="WRITE_APPEND",source_format=bigquery.SourceFormat.CSV,max_bad_records=vAR_number_of_configuration,allowJaggedRows=True)
    job = client.load_table_from_dataframe(vAR_config_df, table,job_config=job_config)
 
    job.result()  # Wait for the job to complete.
