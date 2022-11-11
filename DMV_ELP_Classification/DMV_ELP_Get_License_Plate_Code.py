@@ -50,10 +50,13 @@ def GetPlateCode(vAR_license_plate_desc):
         vAR_error_message = "More than one PLATE CODE Found for given configuration"
 
     if len(vAR_license_plate_desc)>=7:
-        print('vAR_license_plate_desc - ',vAR_license_plate_desc)
+        print('vAR_license_plate_desc Veteran- ',vAR_license_plate_desc)
         if vAR_license_plate_desc[0:7].upper()=="VETERAN":
-            print('vAR_license substr true- ',vAR_license_plate_desc[0:8])
             vAR_plate_code = "V"
+    if len(vAR_license_plate_desc)>=4:
+        print('vAR_license_plate_desc Kids- ',vAR_license_plate_desc)
+        if vAR_license_plate_desc[0:4].upper()=="KIDS":
+            vAR_plate_code = "K"
     
     return vAR_plate_code,vAR_error_message
     
