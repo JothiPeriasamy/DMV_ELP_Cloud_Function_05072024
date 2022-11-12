@@ -28,12 +28,12 @@ import os
 
 def GetMaxPlateTypeCount():
     vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_REQUEST"
+    vAR_table_name = "DMV_ELP.DMV_ELP_REQUEST_RESPONSE_METADATA"
     vAR_query_job = vAR_client.query(
-        " SELECT MAX(PLATE_TYPE_COUNT) as MAX_PLATE_TYPE_COUNT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
+        " SELECT MAX_PLATE_TYPE_DESC_COUNT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() order by created_dt desc limit 1 "
     )
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
     for row in vAR_results:
-        vAR_max_count = row.get('MAX_PLATE_TYPE_COUNT')
+        vAR_max_count = row.get('MAX_PLATE_TYPE_DESC_COUNT')
     return vAR_max_count
