@@ -25,7 +25,7 @@ import pandas as pd
 import datetime
 import os
 
-def Pre_Request_Validation(request_json):
+def Pre_Request_Validation(request_json,vAR_partial_file_name,vAR_partial_file_date):
     vAR_error_message = ""
     vAR_configuration = request_json['LICENSE_PLATE_CONFIG']
 
@@ -52,18 +52,24 @@ def Pre_Request_Validation(request_json):
     if len(request_json['LICENSE_PLATE_CONFIG'].strip())==0:
         vAR_error_message = vAR_error_message+"### ELP Configuration can not be processed for empty string"
 
-    if len(CheckIfConfigAlreadyProcessed(request_json['LICENSE_PLATE_CONFIG']))>0:
+    if len(CheckIfConfigAlreadyProcessed(request_json['LICENSE_PLATE_CONFIG'],vAR_partial_file_name,vAR_partial_file_date))>0:
         vAR_error_message = vAR_error_message+"### Configuration skipped(Already processed)"
 
     
     return {"Error Message":vAR_error_message}
 
 
-def CheckIfConfigAlreadyProcessed(vAR_config):
+def CheckIfConfigAlreadyProcessed(vAR_config,vAR_partial_file_name,vAR_partial_file_date):
     vAR_client = bigquery.Client()
     vAR_processed_config = ''
     vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
-    vAR_query = "select LICENSE_PLATE_CONFIG from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` where LICENSE_PLATE_CONFIG='"+vAR_config+"'"+" and date(created_dt)= current_date() group by LICENSE_PLATE_CONFIG having count(LICENSE_PLATE_CONFIG)>1"
+    
+    if len(vAR_partial_file_name)>0 and len(vAR_partial_file_date)>0:
+        vAR_query = "select LICENSE_PLATE_CONFIG from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` where LICENSE_PLATE_CONFIG='"+vAR_config+"'"+" and REQUEST_DATE='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' group by LICENSE_PLATE_CONFIG having count(LICENSE_PLATE_CONFIG)>1"
+        
+    else:
+        vAR_query = "select LICENSE_PLATE_CONFIG from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` where LICENSE_PLATE_CONFIG='"+vAR_config+"'"+" and date(created_dt)= current_date() group by LICENSE_PLATE_CONFIG having count(LICENSE_PLATE_CONFIG)>1"
+    
     vAR_query_job = vAR_client.query(vAR_query)
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.

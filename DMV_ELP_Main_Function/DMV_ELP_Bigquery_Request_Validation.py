@@ -46,14 +46,14 @@ def ReadNotProcessedRequestData():
     vAR_request_table_name = "DMV_ELP_REQUEST"
     vAR_response_table_name = "DMV_ELP_MLOPS_RESPONSE"
     vAR_sql =(
-        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table_name+"`"+" where LICENSE_PLATE_CONFIG not in (select LICENSE_PLATE_CONFIG from `" +os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table_name+"`"+" where date(created_dt) = current_date()) and date(created_dt)=current_date() order by REQUEST_ID"
+        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table_name+"`"+" where LICENSE_PLATE_CONFIG not in (select LICENSE_PLATE_CONFIG from `" +os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_response_table_name+"`"+" where date(created_dt) = current_date() group by LICENSE_PLATE_CONFIG,RUN_ID having RUN_ID=max(RUN_ID)) and date(created_dt)=current_date() order by REQUEST_ID"
     )
 
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()
     return vAR_df
 
 
-def InsertRequesResponseMetaData(vAR_number_of_configuration,vAR_s3_url):
+def InsertRequesResponseMetaData(vAR_number_of_configuration,vAR_max_plate_desc_count,vAR_s3_url):
    vAR_df = pd.DataFrame()
    vAR_rownum = 1
    if GetMetadatarownum() is not None:
@@ -65,6 +65,7 @@ def InsertRequesResponseMetaData(vAR_number_of_configuration,vAR_s3_url):
    vAR_df['CREATED_DT'] = 1*[datetime.datetime.utcnow()]
    vAR_df['CREATED_USER'] = 1*[os.environ["GCP_USER"]]
    vAR_df['REQUEST_FILE_NAME'] = 1*[vAR_s3_url]
+   vAR_df['MAX_PLATE_TYPE_DESC_COUNT'] = 1*[vAR_max_plate_desc_count]
    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
 
    # Define table name, in format dataset.table_name
@@ -97,10 +98,11 @@ def GetMetadatarownum():
 
 
 def GetCurrentDateResponseCount():
+    vAR_response_count = 0
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
     vAR_query_job = vAR_client.query(
-        " SELECT count(1) as cnt FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where date(created_dt) = current_date() "
+        " SELECT count(1) as cnt,RUN_ID FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where date(created_dt) = current_date() group by RUN_ID having RUN_ID=max(RUN_ID)  order by RUN_ID desc limit 1 "
     )
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
@@ -113,7 +115,7 @@ def GetMetadataTotalRecordsToProcess():
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
     vAR_query_job = vAR_client.query(
-        " SELECT TOTAL_NUMBER_OF_ORDERS FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
+        " SELECT TOTAL_NUMBER_OF_ORDERS FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() order by CREATED_DT desc limit 1"
     )
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
@@ -126,7 +128,7 @@ def GetRequestFileName():
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
     vAR_query_job = vAR_client.query(
-        " SELECT REQUEST_FILE_NAME FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
+        " SELECT REQUEST_FILE_NAME FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() order by CREATED_DT desc limit 1"
     )
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.

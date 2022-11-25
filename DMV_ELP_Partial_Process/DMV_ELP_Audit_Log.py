@@ -17,39 +17,42 @@ ____________________________________|_________________|____________|__________|_
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------
-
 """
 
-from google.cloud import bigquery
-import pandas as pd
+
 import datetime
+from google.cloud import bigquery
 import os
 
+def Insert_Audit_Log(vAR_df):
+    created_at = []
+    created_by = []
+    updated_at = []
+    updated_by = []
+    df_length = len(vAR_df)
+    created_at += df_length * [datetime.datetime.utcnow()]
+    created_by += df_length * [os.environ['GCP_USER']]
+    updated_by += df_length * [os.environ['GCP_USER']]
+    updated_at += df_length * [datetime.datetime.utcnow()]
+    vAR_df['CREATED_DT'] = created_at
+    vAR_df['CREATED_USER'] = created_by
+    vAR_df['UPDATED_DT'] = updated_at
+    vAR_df['UPDATED_USER'] = updated_by
 
-def GetMaxPlateTypeCount():
-    vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_REQUEST"
-    vAR_query_job = vAR_client.query(
-        " SELECT MAX(PLATE_TYPE_COUNT) as MAX_PLATE_TYPE_COUNT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
-    )
+    # Load client
+    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
 
-    vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    for row in vAR_results:
-        vAR_max_count = row.get('MAX_PLATE_TYPE_COUNT')
-    return vAR_max_count
+    # Define table name, in format dataset.table_name
+    table = os.environ["GCP_BQ_SCHEMA_NAME"]+'.DMV_ELP_AUDIT_LOG'
+    job_config = bigquery.LoadJobConfig(autodetect=True,write_disposition="WRITE_APPEND",source_format=bigquery.SourceFormat.CSV,allow_quoted_newlines = True)
+    # Load data to BQ
+    job = client.load_table_from_dataframe(vAR_df, table,job_config=job_config)
 
-
-def GetMaxRunIdFromResponse():
-    vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
-    vAR_query_job = vAR_client.query(
-        " SELECT MAX(RUN_ID) as RUN_ID FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
-    )
-
-    vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    for row in vAR_results:
-        vAR_max_run = row.get('RUN_ID')
-   
-    if vAR_max_run is None:
-       return 0
-    return vAR_max_run
+    job.result()  # Wait for the job to complete.
+    table_id = os.environ["GCP_PROJECT_ID"]+'.'+table
+    table = client.get_table(table_id)  # Make an API request.
+    print(
+            "Loaded {} rows and {} columns to {}".format(
+                table.num_rows, len(table.schema), table_id
+            )
+        )

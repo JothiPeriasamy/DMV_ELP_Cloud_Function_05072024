@@ -62,6 +62,8 @@ def InsertErrorLog(vAR_response_dict):
    vAR_result['ERROR_CODE'] = vAR_response_dict['ERROR_MESSAGE']
    vAR_result['ERROR_CONTEXT'] = str(vAR_response_dict)
    vAR_result['ERROR_MESSAGE'] = vAR_response_dict['ERROR_MESSAGE']
+   if 'REQUEST_FILE_NAME' in vAR_response_dict.keys():
+      vAR_result['REQUEST_FILE_NAME'] = vAR_response_dict['REQUEST_FILE_NAME']
    if 'LICENSE_PLATE_CONFIG' in vAR_response_dict.keys():
       vAR_result['CONFIGURATION'] = vAR_response_dict['LICENSE_PLATE_CONFIG']
 

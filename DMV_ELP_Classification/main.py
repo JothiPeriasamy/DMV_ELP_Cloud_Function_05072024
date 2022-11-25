@@ -35,15 +35,28 @@ from DMV_ELP_Pattern_Denial import Pattern_Denial
 from DMV_ELP_BERT_Model_Prediction import BERT_Model_Result
 from DMV_ELP_LSTM_Model_Prediction import LSTM_Model_Result
 from DMV_ELP_Get_License_Plate_Code import GetPlateCode
-from DMV_ELP_Get_Max_Plate_Count import GetMaxPlateTypeCount
+from DMV_ELP_Get_Max_Plate_Count import GetMaxPlateTypeCount,GetMaxPlateTypeCountPartial
 
 def ELP_Validation(request):
     
-    
+    vAR_partial_file_name = ""
+    vAR_partial_file_date = ""
     vAR_error_message = {}
     request_json = request.get_json()
+    print('request_json - ',request_json)
+    print('request_json type- ',type(request_json))
+    if 'PARTIAL_FILE_NAME' in request_json.keys() and 'PARTIAL_FILE_DATE' in request_json.keys():
+        vAR_partial_file_name = request_json['PARTIAL_FILE_NAME']
+        vAR_partial_file_date = request_json['PARTIAL_FILE_DATE']
+        vAR_max_plate_type_count = GetMaxPlateTypeCountPartial(vAR_partial_file_name,vAR_partial_file_date)
+        
+        del request_json['PARTIAL_FILE_NAME']
+        del request_json['PARTIAL_FILE_DATE']
+    else:
+        vAR_max_plate_type_count = GetMaxPlateTypeCount()
+
+
     response_json = request_json.copy()
-    vAR_max_plate_type_count = GetMaxPlateTypeCount()
     
 
 
@@ -60,7 +73,7 @@ def ELP_Validation(request):
         
         vAR_result_message = ""
         
-        vAR_error_message = Pre_Request_Validation(request_json)
+        vAR_error_message = Pre_Request_Validation(request_json,vAR_partial_file_name,vAR_partial_file_date)
 
         vAR_sg_id = 1
         vAR_platecode_error_message = ""

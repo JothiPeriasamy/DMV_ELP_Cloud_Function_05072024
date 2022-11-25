@@ -27,8 +27,9 @@ import os
 
 
 def GetMaxPlateTypeCount():
+    vAR_max_count = 0
     vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP.DMV_ELP_REQUEST_RESPONSE_METADATA"
+    vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
     vAR_query_job = vAR_client.query(
         " SELECT MAX_PLATE_TYPE_DESC_COUNT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() order by created_dt desc limit 1 "
     )
@@ -36,4 +37,25 @@ def GetMaxPlateTypeCount():
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
     for row in vAR_results:
         vAR_max_count = row.get('MAX_PLATE_TYPE_DESC_COUNT')
+
+    if vAR_max_count==0:
+        print("MAX_PLATE_TYPE_DESC_COUNT is not found in metadata table(GetMaxPlateTypeCount)")
+    return vAR_max_count
+
+
+def GetMaxPlateTypeCountPartial(vAR_partial_file_name,vAR_partial_file_date):
+    vAR_client = bigquery.Client()
+    vAR_max_count = 0
+    vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
+    vAR_query_job = vAR_client.query(
+        " SELECT MAX_PLATE_TYPE_DESC_COUNT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) ='"+vAR_partial_file_date +"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'"+" order by created_dt desc limit 1 "
+    )
+
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    for row in vAR_results:
+        vAR_max_count = row.get('MAX_PLATE_TYPE_DESC_COUNT')
+
+    if vAR_max_count==0:
+        print("MAX_PLATE_TYPE_DESC_COUNT is not found in metadata table(GetMaxPlateTypeCountPartial)")
+
     return vAR_max_count

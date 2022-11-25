@@ -20,36 +20,15 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 
 """
 
-from google.cloud import bigquery
-import pandas as pd
 import datetime
+from google.cloud import storage
 import os
 
-
-def GetMaxPlateTypeCount():
-    vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_REQUEST"
-    vAR_query_job = vAR_client.query(
-        " SELECT MAX(PLATE_TYPE_COUNT) as MAX_PLATE_TYPE_COUNT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
-    )
-
-    vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    for row in vAR_results:
-        vAR_max_count = row.get('MAX_PLATE_TYPE_COUNT')
-    return vAR_max_count
-
-
-def GetMaxRunIdFromResponse():
-    vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
-    vAR_query_job = vAR_client.query(
-        " SELECT MAX(RUN_ID) as RUN_ID FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
-    )
-
-    vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    for row in vAR_results:
-        vAR_max_run = row.get('RUN_ID')
-   
-    if vAR_max_run is None:
-       return 0
-    return vAR_max_run
+def Upload_Response_GCS(vAR_result,vAR_s3_request_file_name):
+    
+   vAR_bucket_name = os.environ["GCS_BUCKET_NAME"]
+   vAR_utc_time = datetime.datetime.utcnow()
+   client = storage.Client()
+   bucket = client.get_bucket(vAR_bucket_name)
+   bucket.blob(os.environ["GCP_RESPONSE_PATH"]+'/'+vAR_utc_time.strftime('%Y%m%d')+'/'+'response_'+vAR_s3_request_file_name+'.csv').upload_from_string(vAR_result, 'text/csv')
+   print('API Response successfully saved into cloud storage')

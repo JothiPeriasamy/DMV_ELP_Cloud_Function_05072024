@@ -1,6 +1,6 @@
 """
------------------------------------------------------------------------------------------------------------------------------------------------------
 
+-----------------------------------------------------------------------------------------------------------------------------------------------------
 © Copyright 2022, California, Department of Motor Vehicle, all rights reserved.
 The source code and all its associated artifacts belong to the California Department of Motor Vehicle (CA, DMV), and no one has any ownership
 and control over this source code and its belongings. Any attempt to copy the source code or repurpose the source code and lead to criminal
@@ -17,39 +17,18 @@ ____________________________________|_________________|____________|__________|_
 Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 1.0      | 09/18/2022
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------
-
 """
 
 from google.cloud import bigquery
-import pandas as pd
-import datetime
 import os
 
+def DeleteProcessedConfigs(vAR_partial_file_date,vAR_partial_file_name,vAR_config):
+   vAR_client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
 
-def GetMaxPlateTypeCount():
-    vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_REQUEST"
-    vAR_query_job = vAR_client.query(
-        " SELECT MAX(PLATE_TYPE_COUNT) as MAX_PLATE_TYPE_COUNT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
-    )
+   vAR_request_table = "DMV_ELP_REQUEST"
 
-    vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    for row in vAR_results:
-        vAR_max_count = row.get('MAX_PLATE_TYPE_COUNT')
-    return vAR_max_count
+   vAR_query_delete = " delete from `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table+"`" +" where  REQUEST_DATE = '"+vAR_partial_file_date+"'"+" and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' and LICENSE_PLATE_CONFIG='"+vAR_config+"'"
 
-
-def GetMaxRunIdFromResponse():
-    vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
-    vAR_query_job = vAR_client.query(
-        " SELECT MAX(RUN_ID) as RUN_ID FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
-    )
-
-    vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    for row in vAR_results:
-        vAR_max_run = row.get('RUN_ID')
-   
-    if vAR_max_run is None:
-       return 0
-    return vAR_max_run
+   vAR_job = vAR_client.query(vAR_query_delete)
+   vAR_job.result()
+   print("Processed Records are deleted! - ",vAR_job.num_dml_affected_rows)

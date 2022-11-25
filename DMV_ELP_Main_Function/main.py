@@ -47,7 +47,7 @@ from DMV_ELP_Response_To_GCS import Upload_Response_GCS
 from DMV_ELP_Response_To_S3 import Upload_Response_To_S3
 from DMV_ELP_Request_To_AWS_Processed import Move_Request_AWS_Processed
 from DMV_ELP_Audit_Log import Insert_Audit_Log
-
+from DMV_ELP_Get_Max_Plate_Count import GetMaxPlateTypeCount,GetMaxRunIdFromResponse
 
 def Process_ELP_Orders(request):
 
@@ -78,8 +78,9 @@ def Process_ELP_Orders(request):
          vAR_current_date_request_count = GetCurrentDateRequestCount()
          
          vAR_current_date_response_count = GetCurrentDateResponseCount()
+         vAR_max_run_id = int(GetMaxRunIdFromResponse())
 
-         if vAR_current_date_request_count==0 and vAR_current_date_response_count==0:
+         if vAR_current_date_request_count==0:
             vAR_s3_request_path = RequestFileValidation()
             if len(vAR_s3_request_path)>0:
                vAR_s3_url = vAR_s3_url+os.environ["S3_REQUEST_BUCKET_NAME"]+'/'+vAR_s3_request_path
@@ -89,10 +90,13 @@ def Process_ELP_Orders(request):
                raise Exception(vAR_err_message)
 
             vAR_batch_elp_configuration_raw = pd.read_csv(vAR_s3_url,delimiter=';')
-            vAR_batch_elp_configuration = PreProcessRequest(vAR_batch_elp_configuration_raw)
+            vAR_batch_elp_configuration = PreProcessRequest(vAR_batch_elp_configuration_raw,vAR_s3_url)
             vAR_number_of_configuration = len(vAR_batch_elp_configuration)
             Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configuration)
-            InsertRequesResponseMetaData(vAR_number_of_configuration,vAR_s3_url)
+            vAR_max_plate_desc_count = GetMaxPlateTypeCount()
+            print('Max plate type desc count - ',vAR_max_plate_desc_count)
+            InsertRequesResponseMetaData(vAR_number_of_configuration,vAR_max_plate_desc_count,vAR_s3_url)
+            vAR_max_run_id = int(GetMaxRunIdFromResponse())+1
 
          vAR_configuration_df = ReadNotProcessedRequestData()
          vAR_configuration_df_len = len(vAR_configuration_df)
@@ -100,9 +104,12 @@ def Process_ELP_Orders(request):
          print('There are '+str(vAR_configuration_df_len)+' configurations yet to be processed')
 
          if vAR_current_date_request_count==0 and vAR_configuration_df_len>0:
-            Upload_Request_GCS(vAR_batch_elp_configuration)
+            Upload_Request_GCS(vAR_batch_elp_configuration,vAR_s3_url)
             Move_Request_AWS_Processed(vAR_s3_request_path)
+            
+
          
+         vAR_s3_url = GetRequestFileName()
          UpdateMetadataTable()
 
 
@@ -116,37 +123,51 @@ def Process_ELP_Orders(request):
          vAR_output_result_objects = [pool.apply_async(Process_ELP_Request,args=(vAR_configuration_df,elp_idx,vAR_request_url,vAR_headers)) for elp_idx in range(vAR_configuration_df_len)]
 
          for vAR_result in vAR_output_result_objects:
+            vAR_result_op = vAR_result.get()
             print('Time taking in for loop - ',time.time()-vAR_timeout_start)
             if (time.time()-vAR_timeout_start)<vAR_timeout_secs:
-               f.write(vAR_result.get()["Process Time"])
+               f.write(vAR_result_op["Process Time"])
                
                
                # If there is any error in insert response method exception block will log the error message for that configuration. So, trying to delete request table record in finally block
                try:      
-                  if len(vAR_result.get()['ERROR_MESSAGE'])>0:
-                     InsertErrorLog(vAR_result.get())
-                  vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
-                  vAR_last_processed_record = vAR_result.get()['LICENSE_PLATE_CONFIG']
-                  if 'Process Time' in vAR_result.get().keys():
-                     del vAR_result.get()['Process Time']
-                  Insert_Response_to_Bigquery(pd.DataFrame(vAR_result.get(),index=[0]))
-                  print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' Inserted into response table')
+                  
+                  vAR_output = vAR_output.append(vAR_result_op,ignore_index=True)
+                  vAR_last_processed_record = vAR_result_op['LICENSE_PLATE_CONFIG']
+                  if 'Process Time' in vAR_result_op.keys():
+                     del vAR_result_op['Process Time']
+                  
+                  vAR_result_op["RUN_ID"] = vAR_max_run_id
+                     
+                  Insert_Response_to_Bigquery(pd.DataFrame(vAR_result_op,index=[0]))
+                  print(vAR_result_op['LICENSE_PLATE_CONFIG']+' Inserted into response table')
                   
                except BaseException as e:
-                  print('BASEEXCEPTIONERR IN INSERT RESPONSE AND DELETE REQUEST - '+str(e))
+                  print('BASEEXCEPTIONERR IN INSERT RESPONSE - '+str(e))
                   print('Error Traceback - '+str(traceback.print_exc()))
                   
                   vAR_err_response_dict = {}
                   vAR_err_response_dict['ERROR_MESSAGE'] = str(e)
-                  vAR_err_response_dict['ERROR_CONTEXT'] = str(vAR_result.get())
-                  vAR_err_response_dict['LICENSE_PLATE_CONFIG'] = vAR_result.get()['LICENSE_PLATE_CONFIG']
+                  vAR_err_response_dict['ERROR_CONTEXT'] = str(vAR_result_op)
+                  vAR_err_response_dict['LICENSE_PLATE_CONFIG'] = vAR_result_op['LICENSE_PLATE_CONFIG']
+                  vAR_err_response_dict['REQUEST_FILE_NAME'] = vAR_s3_url
                   InsertErrorLog(vAR_err_response_dict)
                finally:
-                  DeleteProcessedConfigs(vAR_result.get()['LICENSE_PLATE_CONFIG'])
-                  print(vAR_result.get()['LICENSE_PLATE_CONFIG']+' deleted from request table')
-                  vAR_processed_configs.append(vAR_result.get()['LICENSE_PLATE_CONFIG'])
-                  vAR_output = vAR_output.append(vAR_result.get(),ignore_index=True)
-                  vAR_last_processed_record = vAR_result.get()['LICENSE_PLATE_CONFIG']
+                  try:
+                     DeleteProcessedConfigs(vAR_result_op['LICENSE_PLATE_CONFIG'])
+                     print(vAR_result_op['LICENSE_PLATE_CONFIG']+' deleted from request table')
+                     vAR_processed_configs.append(vAR_result_op['LICENSE_PLATE_CONFIG'])
+                     vAR_output = vAR_output.append(vAR_result_op,ignore_index=True)
+                     vAR_last_processed_record = vAR_result_op['LICENSE_PLATE_CONFIG']
+                  except BaseException as e:
+                     print('BASEEXCEPTIONERR IN DELETE REQUEST - ',str(e))
+                     print('Error Traceback - '+str(traceback.print_exc()))
+                     vAR_err_response_dict = {}
+                     vAR_err_response_dict['ERROR_MESSAGE'] = str(e)
+                     vAR_err_response_dict['ERROR_CONTEXT'] = str(vAR_result_op)
+                     vAR_err_response_dict['LICENSE_PLATE_CONFIG'] = vAR_result_op['LICENSE_PLATE_CONFIG']
+                     vAR_err_response_dict['REQUEST_FILE_NAME'] = vAR_s3_url
+                     InsertErrorLog(vAR_err_response_dict)
                      
                            
             else:
@@ -172,11 +193,13 @@ def Process_ELP_Orders(request):
             vAR_output_copy = ReadResponseTable()
             vAR_output_csv = vAR_output_copy.to_csv()
             
+            vAR_s3_request_file_name = vAR_s3_url.split('/')[-1]
+            vAR_s3_request_file_name = vAR_s3_request_file_name.split('.')[0]
             # Upload response to GCS bucket
-            Upload_Response_GCS(vAR_output_csv)
+            Upload_Response_GCS(vAR_output_csv,vAR_s3_request_file_name)
 
             # Upload response to S3 bucket
-            ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count)
+            ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count,vAR_s3_url,vAR_s3_request_file_name)
 
             
             
@@ -204,11 +227,13 @@ def Process_ELP_Orders(request):
             vAR_output_copy = ReadResponseTable()
             vAR_output_csv = vAR_output.to_csv()
             
+            vAR_s3_request_file_name = vAR_s3_url.split('/')[-1]
+            vAR_s3_request_file_name = vAR_s3_request_file_name.split('.')[0]
             # Upload response to GCS bucket
-            Upload_Response_GCS(vAR_output_csv)
+            Upload_Response_GCS(vAR_output_csv,vAR_s3_request_file_name)
 
             # Upload response to S3 bucket
-            ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count)
+            ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count,vAR_s3_url,vAR_s3_request_file_name)
 
             
             
@@ -230,15 +255,20 @@ def Process_ELP_Orders(request):
       
       
       except BaseException as e:
-         print('BASEEXCEPTIONERR - '+str(e))
+         print('BASEEXCEPTIONERR IN MAIN - '+str(e))
          print('Error Traceback - '+str(traceback.print_exc()))
          vAR_process_end_time = datetime.datetime.now().replace(microsecond=0)
          vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
          f.write('\n\nEnd Time - {}\nTotal Processing Time - {}'.format(vAR_process_end_time,vAR_total_processing_time))
          print('Number of Processed configs - ',len(vAR_processed_configs))
-         vAR_err_response_dict = {}
-         vAR_err_response_dict['ERROR_MESSAGE'] = str(e)
-         InsertErrorLog(vAR_err_response_dict)
+         
+         # Logging only Errors in error log table during insertion of response&deletion of request tables.
+         # So, commented below code to not insert into error log table. we can check the cloud funciton logs to get this exception block errors, if any.
+
+         # vAR_err_response_dict = {}
+         # vAR_err_response_dict['ERROR_MESSAGE'] = str(e)
+         # vAR_err_response_dict['REQUEST_FILE_NAME'] = vAR_s3_url
+         # InsertErrorLog(vAR_err_response_dict)
 
          if "Response Path Error " in str(e):
             print("Response path error in main - ",str(e))
@@ -263,7 +293,7 @@ def Process_ELP_Orders(request):
          return {'Error Message':'### '+str(e)}
 
       
-def PreProcessRequest(vAR_batch_elp_configuration_raw):
+def PreProcessRequest(vAR_batch_elp_configuration_raw,vAR_s3_url):
 
    vAR_number_of_configuration = len(vAR_batch_elp_configuration_raw)
    # Drop unncessary column from request file
@@ -280,7 +310,7 @@ def PreProcessRequest(vAR_batch_elp_configuration_raw):
  'TECH ID':'TECH_ID','ORDER PAYMENT DATE':'ORDER_PAYMENT_DATE'}, inplace = True)
    vAR_batch_elp_configuration_raw["ORDER_GROUP_ID"] = vAR_batch_elp_configuration_raw["ORDER_NUMBER_CODE"].str[:-1]
    vAR_batch_elp_configuration_raw['PLATE_TYPE_COUNT'] = vAR_batch_elp_configuration_raw.groupby('LICENSE_PLATE_DESC')['LICENSE_PLATE_DESC'].transform('count')
-   
+   vAR_batch_elp_configuration_raw['REQUEST_FILE_NAME'] = vAR_number_of_configuration*[vAR_s3_url]
    return vAR_batch_elp_configuration_raw
 
 
@@ -319,14 +349,13 @@ def RequestFileValidation():
   return vAR_request_file_path
 
 
-def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count):
+def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count,vAR_s3_url,vAR_s3_request_file_name):
 
    
    # Audit trial log
    
    vAR_audit_log_df = pd.DataFrame()
 
-   vAR_s3_url = GetRequestFileName()
    vAR_audit_log_df["AUDIT_DATE"] = 1*[date.today()]
    vAR_audit_log_df["REQUEST_DATE"] = 1*[date.today()]
    vAR_audit_log_df["TOTAL_ELP_ORDERS_IN_REQUEST"] = 1*[vAR_records_to_process]
@@ -343,7 +372,7 @@ def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_c
       vAR_objs = vAR_objs['Contents']
    else:
 
-      vAR_response_path = Upload_Response_To_S3(vAR_output_copy)
+      vAR_response_path = Upload_Response_To_S3(vAR_output_copy,vAR_s3_request_file_name)
 
       vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["YES"]
       vAR_audit_log_df["RESPONSE_FILE_NAME"] = 1*[vAR_response_path]
@@ -364,7 +393,7 @@ def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_c
          
    if vAR_counter>0:
 
-      vAR_response_path = Upload_Response_To_S3(vAR_output_copy)
+      vAR_response_path = Upload_Response_To_S3(vAR_output_copy,vAR_s3_request_file_name)
 
       
       vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["YES"]
@@ -374,7 +403,7 @@ def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_c
 
    else:
 
-      vAR_response_path = Upload_Response_To_S3(vAR_output_copy)
+      vAR_response_path = Upload_Response_To_S3(vAR_output_copy,vAR_s3_request_file_name)
    
       vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["YES"]
       vAR_audit_log_df["RESPONSE_FILE_NAME"] = 1*[vAR_response_path]

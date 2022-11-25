@@ -20,36 +20,44 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 
 """
 
-from google.cloud import bigquery
-import pandas as pd
 import datetime
+from google.cloud import bigquery
 import os
+import numpy as np
 
 
-def GetMaxPlateTypeCount():
-    vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_REQUEST"
-    vAR_query_job = vAR_client.query(
-        " SELECT MAX(PLATE_TYPE_COUNT) as MAX_PLATE_TYPE_COUNT FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
-    )
+def Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configuration):
 
-    vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    for row in vAR_results:
-        vAR_max_count = row.get('MAX_PLATE_TYPE_COUNT')
-    return vAR_max_count
-
-
-def GetMaxRunIdFromResponse():
-    vAR_client = bigquery.Client()
-    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
-    vAR_query_job = vAR_client.query(
-        " SELECT MAX(RUN_ID) as RUN_ID FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
-    )
-
-    vAR_results = vAR_query_job.result()  # Waits for job to complete.
-    for row in vAR_results:
-        vAR_max_run = row.get('RUN_ID')
+   vAR_config_df = vAR_batch_elp_configuration
    
-    if vAR_max_run is None:
-       return 0
-    return vAR_max_run
+
+   created_at = []
+   created_by = []
+   updated_at = []
+   updated_by = []
+   created_at += vAR_number_of_configuration * [datetime.datetime.utcnow()]
+   created_by += vAR_number_of_configuration * [os.environ['GCP_USER']]
+   updated_by += vAR_number_of_configuration * [os.environ['GCP_USER']]
+   updated_at += vAR_number_of_configuration * [datetime.datetime.utcnow()]
+
+   vAR_config_df['CREATED_USER'] = created_by
+   vAR_config_df['CREATED_DT'] = created_at
+   vAR_config_df['UPDATED_USER'] = updated_by
+   vAR_config_df['UPDATED_DT'] = updated_at
+
+   client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
+
+   # Define table name, in format dataset.table_name
+   table = os.environ["GCP_BQ_SCHEMA_NAME"]+'.'+'DMV_ELP_REQUEST'
+   job_config = bigquery.LoadJobConfig(autodetect=True,write_disposition="WRITE_APPEND",source_format=bigquery.SourceFormat.CSV)
+   # job_config = bigquery.LoadJobConfig(autodetect=True,write_disposition="WRITE_APPEND",source_format=bigquery.SourceFormat.CSV,max_bad_records=vAR_number_of_configuration,allowJaggedRows=True)
+   job = client.load_table_from_dataframe(vAR_config_df, table,job_config=job_config)
+
+   job.result()  # Wait for the job to complete.
+   table_id = os.environ['GCP_PROJECT_ID']+'.'+table
+   table = client.get_table(table_id)  # Make an API request.
+   print(
+         "Loaded {} rows and {} columns to {}".format(
+               table.num_rows, len(table.schema), table_id
+         )
+      )

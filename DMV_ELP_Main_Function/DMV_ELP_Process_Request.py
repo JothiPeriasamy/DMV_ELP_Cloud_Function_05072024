@@ -43,6 +43,7 @@ def Process_ELP_Request(vAR_batch_elp_configuration,elp_idx,vAR_request_url,vAR_
    
    # Type conversion for datetime fields
    vAR_payload['REQUEST_DATE'] = str(vAR_payload['REQUEST_DATE'])
+   
    vAR_payload['ORDER_PRINTED_DATE'] = str(vAR_payload['ORDER_PRINTED_DATE'])
    vAR_payload['ORDER_PAYMENT_DATE'] = str(vAR_payload['ORDER_PAYMENT_DATE'])
 

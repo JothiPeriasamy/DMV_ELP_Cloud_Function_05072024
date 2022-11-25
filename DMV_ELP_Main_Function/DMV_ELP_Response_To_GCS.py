@@ -24,11 +24,11 @@ import datetime
 from google.cloud import storage
 import os
 
-def Upload_Response_GCS(vAR_result):
+def Upload_Response_GCS(vAR_result,vAR_s3_request_file_name):
     
    vAR_bucket_name = os.environ["GCS_BUCKET_NAME"]
    vAR_utc_time = datetime.datetime.utcnow()
    client = storage.Client()
    bucket = client.get_bucket(vAR_bucket_name)
-   bucket.blob(os.environ["GCP_RESPONSE_PATH"]+'/'+vAR_utc_time.strftime('%Y%m%d')+'/'+vAR_utc_time.strftime('%H%M%S')+'.csv').upload_from_string(vAR_result, 'text/csv')
+   bucket.blob(os.environ["GCP_RESPONSE_PATH"]+'/'+vAR_utc_time.strftime('%Y%m%d')+'/'+'response_'+vAR_s3_request_file_name+'.csv').upload_from_string(vAR_result, 'text/csv')
    print('API Response successfully saved into cloud storage')

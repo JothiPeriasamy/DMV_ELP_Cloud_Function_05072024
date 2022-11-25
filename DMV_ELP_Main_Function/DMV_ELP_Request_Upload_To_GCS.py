@@ -24,14 +24,17 @@ from google.cloud import storage
 import datetime
 import os
 
-def Upload_Request_GCS(vAR_request):
-   
+def Upload_Request_GCS(vAR_request,vAR_s3_url):
+    vAR_request_file_name = vAR_s3_url
+    vAR_request_file_name = vAR_request_file_name.split('/')[-1]
+    print('S3 request file name in upload gcs method - ',vAR_request_file_name)
     vAR_request = vAR_request.to_csv()
     vAR_bucket_name = os.environ['GCS_BUCKET_NAME']
     vAR_utc_time = datetime.datetime.utcnow()
     client = storage.Client()
     bucket = client.get_bucket(vAR_bucket_name)
-    vAR_file_path = os.environ["GCP_REQUEST_PATH"]+'/'+vAR_utc_time.strftime('%Y%m%d')+'/'+vAR_utc_time.strftime('%H%M%S')+'.csv'
+    vAR_file_path = os.environ["GCP_REQUEST_PATH"]+'/'+vAR_utc_time.strftime('%Y%m%d')+'/'+vAR_utc_time.strftime('%H%M%S')+'_'+vAR_request_file_name
+    vAR_file_path = vAR_file_path.lower()
     bucket.blob(vAR_file_path).upload_from_string(vAR_request, 'text/csv')
     print('ELP Configuration Request successfully saved into cloud storage')
     print('Path - ',vAR_file_path)
