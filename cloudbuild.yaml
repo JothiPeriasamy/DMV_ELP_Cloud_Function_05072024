@@ -10,11 +10,21 @@ steps:
     ]
   - name: 'gcr.io/cloud-builders/gcloud'
     args: [
-      'functions', 'deploy', 'dmv-elp-classification-main',
+      'functions', 'deploy', 'dmv-elp-classification-main-1',
       '--gen2',
       '--trigger-http',
       '--runtime', 'python38',
       '--region', 'us-west1',
       '--source', 'DMV_ELP_Main_Function'
+    ]
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'functions', 'deploy', 'dmv-elp-classification-partial-process',
+      '--gen2',
+      '--trigger-http',
+      '--runtime', 'python38',
+      '--region', 'us-west1',
+      '--source', 'DMV_ELP_Partial_Process'
     ]
     
