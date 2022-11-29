@@ -43,7 +43,7 @@ def GetMaxRunIdFromResponse():
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
     vAR_query_job = vAR_client.query(
-        " SELECT MAX(RUN_ID) as RUN_ID FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) = current_date() "
+        " SELECT MAX(RUN_ID) as RUN_ID FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(REQUEST_DATE) = current_date() "
     )
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
