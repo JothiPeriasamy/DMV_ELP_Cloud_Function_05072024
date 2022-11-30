@@ -10,7 +10,7 @@ steps:
     ]
   - name: 'gcr.io/cloud-builders/gcloud'
     args: [
-      'functions', 'deploy', 'dmv-elp-classification-main-1',
+      'functions', 'deploy', 'dmv-elp-classification-main',
       '--gen2',
       '--trigger-http',
       '--runtime', 'python38',
