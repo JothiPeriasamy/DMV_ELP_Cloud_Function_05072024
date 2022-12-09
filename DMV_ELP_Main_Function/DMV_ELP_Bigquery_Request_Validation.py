@@ -57,7 +57,8 @@ def InsertRequesResponseMetaData(vAR_number_of_configuration,vAR_max_plate_desc_
    vAR_df = pd.DataFrame()
    vAR_rownum = 1
    if GetMetadatarownum() is not None:
-      if GetMetadatarownum()>0:
+      vAR_rownum = GetMetadatarownum()
+      if vAR_rownum>0:
          vAR_df['ROWNUM'] = 1*[vAR_rownum+1]
    else:
       vAR_df['ROWNUM'] = 1*[vAR_rownum]
@@ -135,3 +136,36 @@ def GetRequestFileName():
     for row in vAR_results:
         vAR_request_file_name = row.get('REQUEST_FILE_NAME')
     return vAR_request_file_name
+
+
+
+
+# def GetMetadataLatestRecordTimeDiff():
+#     vAR_client = bigquery.Client()
+#     vAR_time_diff = 0
+#     vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
+#     vAR_query_job = vAR_client.query(
+#         " SELECT  TIMESTAMP_DIFF(current_timestamp(), timestamp(updated_dt), MINUTE) as minutes_different FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` where RUN1='IN PROGRESS' or RUN2='IN PROGRESS' or RUN3='IN PROGRESS' or RUN4='IN PROGRESS' or RUN5='IN PROGRESS' order by created_dt desc limit 1"
+#     )
+
+#     vAR_results = vAR_query_job.result()  # Waits for job to complete.
+#     print('GetMetadataLatestRecordTimeDiff - ',vAR_results)
+#     for row in vAR_results:
+#         vAR_time_diff = row.get('minutes_different')
+#     return vAR_time_diff
+
+
+def GetMetadataLatestRecordTimeDiff():
+    vAR_client = bigquery.Client()
+    vAR_inprogress_cnt = 0
+    vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
+    vAR_query_job = vAR_client.query(
+        " SELECT  * FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`  where date(CREATED_DT)=current_date() and (RUN1='IN PROGRESS' or RUN2='IN PROGRESS' or RUN3='IN PROGRESS' or RUN4='IN PROGRESS' or RUN5='IN PROGRESS')  order by created_dt desc limit 1"
+    )
+
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    print('GetMetadataLatestRecordTimeDiff - ',vAR_results)
+    for row in vAR_results:
+        vAR_inprogress_cnt +=1
+        print('vAR_inprogress_cnt - ',vAR_inprogress_cnt)
+    return vAR_inprogress_cnt

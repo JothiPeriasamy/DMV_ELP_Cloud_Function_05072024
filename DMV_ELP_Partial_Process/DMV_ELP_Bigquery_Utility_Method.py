@@ -86,10 +86,9 @@ def GetResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_n
     vAR_run_id = 0
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
-    vAR_query_job = vAR_client.query(
-        " SELECT count(1) as cnt,RUN_ID FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where REQUEST_DATE = '"+vAR_partial_file_date+"'"+" and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' group by RUN_ID"
-    )
-
+    vAR_query = " SELECT count(1) as cnt,RUN_ID FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where REQUEST_DATE = '"+vAR_partial_file_date+"'"+" and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' group by RUN_ID"
+    vAR_query_job = vAR_client.query(vAR_query)
+    print('Response count Query - ',vAR_query)
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
     for row in vAR_results:
         vAR_response_count = row.get('cnt')
@@ -97,6 +96,21 @@ def GetResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_n
     if vAR_run_id==0:
         print('Assigining run id as 0, since run id not found for given file&date')
     return vAR_response_count,vAR_run_id
+
+
+def GetPartialResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_name):
+    vAR_response_count = 0
+    vAR_client = bigquery.Client()
+    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
+    vAR_query_job = vAR_client.query(
+        " SELECT count(1) as cnt FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where REQUEST_DATE = '"+vAR_partial_file_date+"'"+" and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' and date(CREATED_DT)=current_date()"
+    )
+
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    for row in vAR_results:
+        vAR_response_count = row.get('cnt')
+    
+    return vAR_response_count
 
 
 
@@ -152,6 +166,18 @@ def ReadNotProcessedRequestData(vAR_partial_file_date,vAR_partial_file_name):
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()
     return vAR_df
 
+def ReadPartialResponseTable(vAR_partial_file_date,vAR_partial_file_name):
+    vAR_client = bigquery.Client()
+    vAR_request_table_name = "DMV_ELP_MLOPS_RESPONSE"
+    # RUN_ID no need in where clause. Because,request file name will be unique for respective response records
+    vAR_sql =(
+        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table_name+"`"+" where REQUEST_DATE='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name +"' and date(CREATED_DT)=current_date() order by PLATE_TYPE_COUNT DESC,LICENSE_PLATE_DESC ASC,LICENSE_PLATE_CONFIG ASC"
+    )
+
+    vAR_df = vAR_client.query(vAR_sql).to_dataframe()
+    return vAR_df
+
+
 def ReadResponseTable(vAR_partial_file_date,vAR_partial_file_name):
     vAR_client = bigquery.Client()
     vAR_request_table_name = "DMV_ELP_MLOPS_RESPONSE"
@@ -203,6 +229,18 @@ def GetRequestFilePath(vAR_partial_file_date,vAR_partial_file_name):
     return vAR_request_file_name
 
 
+def GetPreviousdayRequestCount(vAR_partial_file_date,vAR_partial_file_name):
+    vAR_client = bigquery.Client()
+    vAR_table_name = "DMV_ELP_REQUEST"
+    vAR_query_job = vAR_client.query(
+        " SELECT count(1) as cnt FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`" + " where date(created_dt) ='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' and date(REQUEST_DATE)='"+vAR_partial_file_date+"'"
+    )
+
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    for row in vAR_results:
+        vAR_request_prev_count = row.get('cnt')
+    return vAR_request_prev_count
+
 
 def UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name):
    vAR_num_of_updated_row =0
@@ -213,13 +251,21 @@ def UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name):
 
    vAR_query_list = ["UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN1 ='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 is NULL AND RUN2 is NULL AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
 
-"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN1 ='COMPLETE', RUN2='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='IN PROGRESS' AND RUN2 is NULL AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN1 ='COMPLETE',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='IN PROGRESS' AND RUN2 is NULL AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
 
-"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN2 ='COMPLETE', RUN3='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER'  WHERE RUN1='COMPLETE' AND RUN2 ='IN PROGRESS' AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN2='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER'  WHERE RUN1='COMPLETE' AND RUN2 is NULL AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
 
-"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN3 ='COMPLETE', RUN4='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1='COMPLETE' AND RUN2 ='COMPLETE' AND RUN3 ='IN PROGRESS' AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN2 ='COMPLETE',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1='COMPLETE' AND RUN2 ='IN PROGRESS' AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
 
-"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN4 ='COMPLETE', RUN5='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE' AND RUN2 ='COMPLETE' AND RUN3 ='COMPLETE' AND RUN4= 'IN PROGRESS' AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN3='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE' AND RUN2 ='COMPLETE' AND RUN3 is NULL AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
+
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN3 ='COMPLETE',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE'  AND RUN2 ='COMPLETE' AND RUN3 ='IN PROGRESS' AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
+
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN4='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE' AND RUN2 ='COMPLETE' AND RUN3 ='COMPLETE' AND RUN4 is NULL AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
+
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN4 ='COMPLETE',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE'  AND RUN2 ='COMPLETE' AND RUN3 ='COMPLETE' AND RUN4 = 'IN PROGRESS' AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
+
+"UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN5='IN PROGRESS',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE' AND RUN2 ='COMPLETE' AND RUN3 ='COMPLETE' AND RUN4= 'COMPLETE' AND RUN5 is NULL and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'",
 
 "UPDATE "+"`"+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+" SET RUN5 ='COMPLETE',UPDATED_DT=CURRENT_DATETIME(),UPDATED_USER='AWS_LAMBDA_USER' WHERE RUN1 ='COMPLETE'  AND RUN2 ='COMPLETE' AND RUN3 ='COMPLETE' AND RUN4 = 'COMPLETE' AND RUN5 ='IN PROGRESS' and date(CREATED_DT)='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"'"]
 
@@ -233,3 +279,39 @@ def UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name):
          break
       else:
          print('Metadata table not updated')
+
+
+
+
+
+
+# def GetMetadataLatestRecordTimeDiff():
+#     vAR_client = bigquery.Client()
+#     vAR_time_diff = 0
+#     vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
+#     vAR_query_job = vAR_client.query(
+#         " SELECT  TIMESTAMP_DIFF(current_timestamp(), timestamp(updated_dt), MINUTE) as minutes_different FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`  order by created_dt desc limit 1"
+#     )
+
+#     vAR_results = vAR_query_job.result()  # Waits for job to complete.
+#     print('GetMetadataLatestRecordTimeDiff - ',vAR_results)
+#     for row in vAR_results:
+#         vAR_time_diff = row.get('minutes_different')
+#     return vAR_time_diff
+
+
+
+def GetMetadataLatestRecordTimeDiff(vAR_partial_file_date,vAR_partial_file_name):
+    vAR_client = bigquery.Client()
+    vAR_inprogress_cnt = 0
+    vAR_table_name = "DMV_ELP_REQUEST_RESPONSE_METADATA"
+    vAR_query_job = vAR_client.query(
+        " SELECT  * FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`  where date(CREATED_DT)='"+vAR_partial_file_date+"' and (RUN1='IN PROGRESS' or RUN2='IN PROGRESS' or RUN3='IN PROGRESS' or RUN4='IN PROGRESS' or RUN5='IN PROGRESS')  order by created_dt desc limit 1"
+    )
+
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    print('GetMetadataLatestRecordTimeDiff - ',vAR_results)
+    for row in vAR_results:
+        vAR_inprogress_cnt +=1
+        print('vAR_inprogress_cnt - ',vAR_inprogress_cnt)
+    return vAR_inprogress_cnt

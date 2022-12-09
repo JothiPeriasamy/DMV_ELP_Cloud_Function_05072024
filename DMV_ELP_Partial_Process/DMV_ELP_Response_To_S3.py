@@ -25,20 +25,22 @@ from io import StringIO
 import datetime
 import os
 
-def Upload_Response_To_S3(vAR_result,vAR_s3_request_file_name):
+def Upload_Response_To_S3(vAR_result,vAR_s3_request_file_name,vAR_partial_file_flag):
    try:
       vAR_utc_time = datetime.datetime.utcnow()
       vAR_bucket_name = os.environ['S3_RESPONSE_BUCKET_NAME']
       vAR_csv_buffer = StringIO()
       vAR_result.to_csv(vAR_csv_buffer)
       vAR_s3_resource = boto3.resource('s3',aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
-      vAR_s3_resource.Object(vAR_bucket_name, os.environ["AWS_RESPONSE_PATH"]+vAR_utc_time.strftime('%Y%m%d')+'/'+'response_'+vAR_s3_request_file_name+'.csv').put(Body=vAR_csv_buffer.getvalue())
-      print('bucket - ',vAR_bucket_name)
-      vAR_response_path = os.environ["AWS_RESPONSE_PATH"]+vAR_utc_time.strftime('%Y%m%d')+'/'+'response_'+vAR_s3_request_file_name+'.csv' 
-      print('path - ',vAR_response_path)
+      if vAR_partial_file_flag==1:
+          vAR_s3_response_file_name = os.environ["AWS_RESPONSE_PATH"]+vAR_utc_time.strftime('%Y%m%d')+'/'+'partial_response_'+vAR_s3_request_file_name+'.csv' 
+      else:
+          vAR_s3_response_file_name = os.environ["AWS_RESPONSE_PATH"]+vAR_utc_time.strftime('%Y%m%d')+'/'+'response_'+vAR_s3_request_file_name+'.csv' 
+      vAR_s3_resource.Object(vAR_bucket_name, vAR_s3_response_file_name).put(Body=vAR_csv_buffer.getvalue())
+      print('path - ',vAR_s3_response_file_name)
       print('API Response successfully saved into S3 bucket')
-      vAR_response_path = "s3://"+vAR_bucket_name+"/"+vAR_response_path
-      return vAR_response_path
+      vAR_s3_response_file_name = "s3://"+vAR_bucket_name+"/"+vAR_s3_response_file_name
+      return vAR_s3_response_file_name
    
    except BaseException as exception:
       vAR_exception_message = str(exception)

@@ -30,5 +30,5 @@ def Upload_Response_GCS(vAR_result,vAR_s3_request_file_name):
    vAR_utc_time = datetime.datetime.utcnow()
    client = storage.Client()
    bucket = client.get_bucket(vAR_bucket_name)
-   bucket.blob(os.environ["GCP_RESPONSE_PATH"]+'/'+vAR_utc_time.strftime('%Y%m%d')+'/'+'response_'+vAR_s3_request_file_name+'.csv').upload_from_string(vAR_result, 'text/csv')
+   bucket.blob(os.environ["GCP_RESPONSE_PATH"]+'/'+vAR_utc_time.strftime('%Y%m%d')+'/'+'partial_response_'+vAR_s3_request_file_name+'.csv').upload_from_string(vAR_result, 'text/csv')
    print('API Response successfully saved into cloud storage')

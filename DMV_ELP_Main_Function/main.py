@@ -37,7 +37,7 @@ from DMV_ELP_Request_Upload_To_GCS import Upload_Request_GCS
 from DMV_ELP_Response_To_S3 import Upload_Response_To_S3
 from DMV_ELP_Response_To_Bigquery import Insert_Response_to_Bigquery,ReadResponseTable
 from DMV_ELP_Request_To_Bigquery import Insert_Request_To_Bigquery
-from DMV_ELP_Bigquery_Request_Validation import GetCurrentDateRequestCount,ReadNotProcessedRequestData,InsertRequesResponseMetaData,GetMetadataTotalRecordsToProcess,GetCurrentDateResponseCount,GetRequestFileName
+from DMV_ELP_Bigquery_Request_Validation import GetCurrentDateRequestCount,ReadNotProcessedRequestData,InsertRequesResponseMetaData,GetMetadataTotalRecordsToProcess,GetCurrentDateResponseCount,GetRequestFileName,GetMetadataLatestRecordTimeDiff
 from DMV_ELP_Request_Delete import DeleteProcessedConfigs
 from DMV_ELP_Update_Metadata_Table import UpdateMetadataTable
 from DMV_ELP_Update_ErrorLog import InsertErrorLog
@@ -49,7 +49,16 @@ from DMV_ELP_Request_To_AWS_Processed import Move_Request_AWS_Processed
 from DMV_ELP_Audit_Log import Insert_Audit_Log
 from DMV_ELP_Get_Max_Plate_Count import GetMaxPlateTypeCount,GetMaxRunIdFromResponse
 
+pd.set_option('display.max_colwidth', 500)
+
+
 def Process_ELP_Orders(request):
+
+   vAR_metadata_time_diff = GetMetadataLatestRecordTimeDiff()
+
+   if vAR_metadata_time_diff>0:
+      print("Another scheduler is processing the request. So,terminating the overlap scheduler ")
+      return {"Error Message":"Overlap Scheduler Terminated"}
 
    vAR_process_start_time = datetime.datetime.now().replace(microsecond=0)
    vAR_timeout_start = time.time()
@@ -110,7 +119,7 @@ def Process_ELP_Orders(request):
 
          
          vAR_s3_url = GetRequestFileName()
-         UpdateMetadataTable()
+         UpdateMetadataTable(vAR_s3_url)
 
 
          
@@ -140,6 +149,7 @@ def Process_ELP_Orders(request):
                   vAR_result_op["RUN_ID"] = vAR_max_run_id
                      
                   Insert_Response_to_Bigquery(pd.DataFrame(vAR_result_op,index=[0]))
+
                   print(vAR_result_op['LICENSE_PLATE_CONFIG']+' Inserted into response table')
                   
                except BaseException as e:
@@ -171,6 +181,7 @@ def Process_ELP_Orders(request):
                      
                            
             else:
+               UpdateMetadataTable(vAR_s3_url)
                raise TimeoutError('Timeout Error inside result iteration')
             
             
@@ -211,6 +222,7 @@ def Process_ELP_Orders(request):
 
 
          f.write('\n\nEnd Time - {}\nTotal Processing Time - {}'.format(vAR_process_end_time,vAR_total_processing_time))
+         UpdateMetadataTable(vAR_s3_url)
          return 'ELP Configurations Successfully Processed'
 
       except TimeoutError as timeout:
@@ -225,7 +237,7 @@ def Process_ELP_Orders(request):
          print('request_table_count - ', vAR_current_date_request_count)
          if vAR_current_date_request_count==0 and vAR_configuration_df_len!=0:
             vAR_output_copy = ReadResponseTable()
-            vAR_output_csv = vAR_output.to_csv()
+            vAR_output_csv = vAR_output_copy.to_csv()
             
             vAR_s3_request_file_name = vAR_s3_url.split('/')[-1]
             vAR_s3_request_file_name = vAR_s3_request_file_name.split('.')[0]
@@ -261,6 +273,7 @@ def Process_ELP_Orders(request):
          vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
          f.write('\n\nEnd Time - {}\nTotal Processing Time - {}'.format(vAR_process_end_time,vAR_total_processing_time))
          print('Number of Processed configs - ',len(vAR_processed_configs))
+         UpdateMetadataTable(vAR_s3_url)
          
          # Logging only Errors in error log table during insertion of response&deletion of request tables.
          # So, commented below code to not insert into error log table. we can check the cloud funciton logs to get this exception block errors, if any.

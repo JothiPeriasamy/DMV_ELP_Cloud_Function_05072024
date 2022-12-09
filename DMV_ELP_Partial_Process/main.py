@@ -37,7 +37,7 @@ import boto3
 
 from DMV_ELP_Get_Not_Processed_Config import FilterNotProcessedRecordsFromGCSRequestFile
 from DMV_ELP_Insert_Request_To_Bigquery import Insert_Request_To_Bigquery
-from DMV_ELP_Bigquery_Utility_Method import GetMetadataTotalRecordsToProcess,ReadNotProcessedRequestData,GetResponseCountForGivenDateAndFile,GetRequestCountForGivenDateAndFile,ReadResponseTable,PostProcessingReport,DeleteErrorTableRecords,GetErrorTableCountForGivenDateAndFile,GetRequestFilePath,UpdateMetadataTable
+from DMV_ELP_Bigquery_Utility_Method import GetMetadataTotalRecordsToProcess,ReadNotProcessedRequestData,GetResponseCountForGivenDateAndFile,GetRequestCountForGivenDateAndFile,ReadResponseTable,PostProcessingReport,DeleteErrorTableRecords,GetErrorTableCountForGivenDateAndFile,GetRequestFilePath,UpdateMetadataTable,GetPartialResponseCountForGivenDateAndFile,GetPreviousdayRequestCount,ReadPartialResponseTable,GetMetadataLatestRecordTimeDiff
 from DMV_ELP_Process_Request import Process_ELP_Request
 from DMV_ELP_Response_To_Bigquery import Insert_Response_to_Bigquery
 from DMV_ELP_Insert_ErrorLog import InsertErrorLog
@@ -46,7 +46,21 @@ from DMV_ELP_Response_To_GCS import Upload_Response_GCS
 from DMV_ELP_Response_To_S3 import Upload_Response_To_S3
 from DMV_ELP_Audit_Log import Insert_Audit_Log
 
+pd.set_option('display.max_colwidth', 500)
+
 def ProcessPartialOrders(request):
+
+    vAR_partial_file_date = os.environ["PARTIAL_FILE_DATE"]
+    vAR_partial_file_name = os.environ["PARTIAL_FILE_NAME"]
+
+    vAR_partial_file_name = vAR_partial_file_name.lower()
+
+    vAR_metadata_time_diff = GetMetadataLatestRecordTimeDiff(vAR_partial_file_date,vAR_partial_file_name)
+
+    if vAR_metadata_time_diff>0:
+
+        print("Another scheduler is processing the request. So,terminating the overlap scheduler ")
+        return {"Error Message":"Overlap Scheduler Terminated"}
 
     vAR_gcs_client = storage.Client()
     vAR_bucket = vAR_gcs_client.get_bucket(os.environ['GCS_BUCKET_NAME'])
@@ -57,9 +71,12 @@ def ProcessPartialOrders(request):
             vAR_process_start_time = datetime.datetime.now().replace(microsecond=0)
             vAR_timeout_start = time.time()
 
-            vAR_partial_file_date = os.environ["PARTIAL_FILE_DATE"]
-            vAR_partial_file_name = os.environ["PARTIAL_FILE_NAME"]
-            vAR_partial_file_name = vAR_partial_file_name.lower()
+            
+
+            UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name)
+            
+            vAR_previousday_request_count = GetPreviousdayRequestCount(vAR_partial_file_date,vAR_partial_file_name)
+            print('Previous day request count - ',vAR_previousday_request_count)
             vAR_records_to_insert_to_request_table = FilterNotProcessedRecordsFromGCSRequestFile(vAR_partial_file_date,vAR_partial_file_name)
             if len(vAR_records_to_insert_to_request_table)>0:
                 vAR_records_to_insert_to_request_table_len = len(vAR_records_to_insert_to_request_table)
@@ -85,7 +102,7 @@ def ProcessPartialOrders(request):
                 vAR_configuration_df = ReadNotProcessedRequestData(vAR_partial_file_date,vAR_partial_file_name)
                 vAR_configuration_df_len = len(vAR_configuration_df)
 
-                UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name)
+                
 
                 print('There are '+str(vAR_configuration_df_len)+' configurations yet to be processed')
 
@@ -147,6 +164,7 @@ def ProcessPartialOrders(request):
                                     vAR_err_response_dict['REQUEST_FILE_NAME'] = vAR_result_op['REQUEST_FILE_NAME']
                                 InsertErrorLog(vAR_err_response_dict)         
                     else:
+                        UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name)
                         raise TimeoutError('Timeout Error inside result iteration')
                 
                 # Close Pool and let all the processes complete
@@ -158,18 +176,34 @@ def ProcessPartialOrders(request):
                 vAR_response_table_count,vAR_run_id = GetResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_name)
                 vAR_request_table_count = GetRequestCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_name)
 
-                if vAR_request_table_count==0 and vAR_configuration_df_len>0:
+                if vAR_previousday_request_count>0 and vAR_configuration_df_len>0 and vAR_request_table_count==0:
                     vAR_output_copy = ReadResponseTable(vAR_partial_file_date,vAR_partial_file_name)
                     vAR_output_csv = vAR_output_copy.to_csv()
-                    
+                    vAR_partial_file_flag = 0
                     # Upload response to GCS bucket
                     vAR_partial_file_name_truncate = vAR_partial_file_name.replace('.csv','')
                     Upload_Response_GCS(vAR_output_csv,vAR_partial_file_name_truncate)
 
                     # Upload response to S3 bucket
-                    ResponsePathValidation(vAR_output_copy,vAR_total_records_to_process,vAR_response_table_count,vAR_s3_url,vAR_partial_file_name_truncate,vAR_partial_file_date,vAR_partial_file_name)
+                    ResponsePathValidation(vAR_output_copy,vAR_total_records_to_process,vAR_response_table_count,vAR_s3_url,vAR_partial_file_name_truncate,vAR_partial_file_date,vAR_partial_file_name,vAR_partial_file_flag)
 
                     PostProcessingReport(vAR_partial_file_date,vAR_partial_file_name)
+                    UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name)
+
+                elif vAR_request_table_count==0 and vAR_configuration_df_len>0:
+                    vAR_output_copy = ReadPartialResponseTable(vAR_partial_file_date,vAR_partial_file_name)
+                    vAR_output_csv = vAR_output_copy.to_csv()
+                    vAR_partial_file_flag = 1
+                    # Upload response to GCS bucket
+                    vAR_partial_file_name_truncate = vAR_partial_file_name.replace('.csv','')
+                    Upload_Response_GCS(vAR_output_csv,vAR_partial_file_name_truncate)
+
+                    # Upload response to S3 bucket
+                    vAR_response_table_count = GetPartialResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_name)
+                    ResponsePathValidation(vAR_output_copy,vAR_total_records_to_process,vAR_response_table_count,vAR_s3_url,vAR_partial_file_name_truncate,vAR_partial_file_date,vAR_partial_file_name,vAR_partial_file_flag)
+
+                    PostProcessingReport(vAR_partial_file_date,vAR_partial_file_name)
+                    UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name)
 
                 vAR_process_end_time = datetime.datetime.now().replace(microsecond=0)
                 vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
@@ -190,15 +224,30 @@ def ProcessPartialOrders(request):
             vAR_response_table_count,vAR_run_id = GetResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_name)
             vAR_request_table_count = GetRequestCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_name)
 
-            if vAR_request_table_count==0 and vAR_configuration_df_len>0:
+            if vAR_previousday_request_count>0 and vAR_configuration_df_len>0 and vAR_request_table_count==0:
                 vAR_output_copy = ReadResponseTable(vAR_partial_file_date,vAR_partial_file_name)
                 vAR_output_csv = vAR_output_copy.to_csv()
-                
+                vAR_partial_file_flag = 0
                 # Upload response to GCS bucket
                 vAR_partial_file_name_truncate = vAR_partial_file_name.replace('.csv','')
                 Upload_Response_GCS(vAR_output_csv,vAR_partial_file_name_truncate)
+
                 # Upload response to S3 bucket
-                ResponsePathValidation(vAR_output_copy,vAR_total_records_to_process,vAR_response_table_count,vAR_s3_url,vAR_partial_file_name_truncate,vAR_partial_file_date,vAR_partial_file_name)
+                ResponsePathValidation(vAR_output_copy,vAR_total_records_to_process,vAR_response_table_count,vAR_s3_url,vAR_partial_file_name_truncate,vAR_partial_file_date,vAR_partial_file_name,vAR_partial_file_flag)
+                
+                PostProcessingReport(vAR_partial_file_date,vAR_partial_file_name)
+
+            elif vAR_request_table_count==0 and vAR_configuration_df_len>0:
+                vAR_output_copy = ReadPartialResponseTable(vAR_partial_file_date,vAR_partial_file_name)
+                vAR_output_csv = vAR_output_copy.to_csv()
+                vAR_partial_file_flag=1
+                # Upload response to GCS bucket
+                vAR_partial_file_name_truncate = vAR_partial_file_name.replace('.csv','')
+                Upload_Response_GCS(vAR_output_csv,vAR_partial_file_name_truncate)
+
+                # Upload response to S3 bucket
+                vAR_response_table_count = GetPartialResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_name)
+                ResponsePathValidation(vAR_output_copy,vAR_total_records_to_process,vAR_response_table_count,vAR_s3_url,vAR_partial_file_name_truncate,vAR_partial_file_date,vAR_partial_file_name,vAR_partial_file_flag)
                 
                 PostProcessingReport(vAR_partial_file_date,vAR_partial_file_name)
                     
@@ -216,7 +265,7 @@ def ProcessPartialOrders(request):
                 
                 
 
-                return {'Error Message':'### Custom Timeout Error Occured'}
+            return {'Error Message':'### Custom Timeout Error Occured'}
         
 
         except BaseException as e:
@@ -226,6 +275,7 @@ def ProcessPartialOrders(request):
             vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
             f.write('\n\nEnd Time - {}\nTotal Processing Time - {}'.format(vAR_process_end_time,vAR_total_processing_time))
             print('Number of Processed configs - ',len(vAR_processed_configs))
+            UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name)
 
             if "Response Path Error " in str(e):
                 print("Response path error in main - ",str(e))
@@ -234,9 +284,9 @@ def ProcessPartialOrders(request):
 
                 vAR_audit_log_df["AUDIT_DATE"] = 1*[date.today()]
                 vAR_audit_log_df["REQUEST_DATE"] = 1*[date.today()]
-                vAR_audit_log_df["TOTAL_ELP_ORDERS_IN_REQUEST"] = 1*[vAR_records_to_process]
-                vAR_audit_log_df["TOTAL_ELP_ORDERS_IN_RESPONSE"] = 1*[vAR_response_count]
-                vAR_audit_log_df["TOTAL_ELP_ORDER_PROCESSED"] = 1*[vAR_response_count] 
+                vAR_audit_log_df["TOTAL_ELP_ORDERS_IN_REQUEST"] = 1*[vAR_total_records_to_process]
+                vAR_audit_log_df["TOTAL_ELP_ORDERS_IN_RESPONSE"] = 1*[vAR_response_table_count]
+                vAR_audit_log_df["TOTAL_ELP_ORDER_PROCESSED"] = 1*[vAR_response_table_count] 
                 vAR_audit_log_df["REQUEST_FILE_NAME"] = 1*[vAR_s3_url]
                 vAR_audit_log_df["SYSTEM_ENVIRONMENT"] = 1*[os.environ["SYSTEM_ENVIRONMENT"]]
 
@@ -249,7 +299,7 @@ def ProcessPartialOrders(request):
 
 
 
-def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count,vAR_s3_url,vAR_s3_request_file_name,vAR_partial_file_date,vAR_partial_file_name):
+def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_count,vAR_s3_url,vAR_s3_request_file_name,vAR_partial_file_date,vAR_partial_file_name,vAR_partial_file_flag):
 
    
    # Audit trial log
@@ -272,7 +322,7 @@ def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_c
       vAR_objs = vAR_objs['Contents']
    else:
 
-      vAR_response_path = Upload_Response_To_S3(vAR_output_copy,vAR_s3_request_file_name)
+      vAR_response_path = Upload_Response_To_S3(vAR_output_copy,vAR_s3_request_file_name,vAR_partial_file_flag)
 
       vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["YES"]
       vAR_audit_log_df["RESPONSE_FILE_NAME"] = 1*[vAR_response_path]
@@ -293,7 +343,7 @@ def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_c
          
    if vAR_counter>0:
 
-      vAR_response_path = Upload_Response_To_S3(vAR_output_copy,vAR_s3_request_file_name)
+      vAR_response_path = Upload_Response_To_S3(vAR_output_copy,vAR_s3_request_file_name,vAR_partial_file_flag)
 
       
       vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["YES"]
@@ -303,7 +353,7 @@ def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_c
 
    else:
 
-      vAR_response_path = Upload_Response_To_S3(vAR_output_copy,vAR_s3_request_file_name)
+      vAR_response_path = Upload_Response_To_S3(vAR_output_copy,vAR_s3_request_file_name,vAR_partial_file_flag)
    
       vAR_audit_log_df["FILE_TRANSMITTED_SUCCESSFULLY"] = 1*["YES"]
       vAR_audit_log_df["RESPONSE_FILE_NAME"] = 1*[vAR_response_path]
