@@ -23,15 +23,15 @@ def Process_API_Response(vAR_api_response):
 
    vAR_data = vAR_api_response.copy()
    
-   if 'MODEL_PREDICTION'  in vAR_api_response:
-      vAR_data['TOXIC'] = vAR_api_response['MODEL_PREDICTION']['PROFANITY_CLASSIFICATION'][0]['TOXIC']
-      vAR_data['SEVERE_TOXIC'] = vAR_api_response['MODEL_PREDICTION']['PROFANITY_CLASSIFICATION'][0]['SEVERE_TOXIC']
-      vAR_data['OBSCENE'] = vAR_api_response['MODEL_PREDICTION']['PROFANITY_CLASSIFICATION'][0]['OBSCENE']
-      vAR_data['IDENTITY_HATE'] = vAR_api_response['MODEL_PREDICTION']['PROFANITY_CLASSIFICATION'][0]['IDENTITY_HATE']
-      vAR_data['INSULT'] = vAR_api_response['MODEL_PREDICTION']['PROFANITY_CLASSIFICATION'][0]['INSULT']
-      vAR_data['THREAT'] = vAR_api_response['MODEL_PREDICTION']['PROFANITY_CLASSIFICATION'][0]['THREAT']
-      vAR_data['OVERALL_SCORE'] = vAR_api_response['MODEL_PREDICTION']['SUM_OF_ALL_CATEGORIES']
+   if 'RNN'  in vAR_api_response:
+      vAR_data["RNN"]["RECOMMENDED_CONFIGURATION"] = None
+      vAR_data["RNN"]["RECOMMENDATION_REASON"] = None
 
-      del vAR_data['MODEL_PREDICTION']
+      vAR_data["RNN"]["SEVERE_TOXIC_REASON"] = None
+      vAR_data["RNN"]["OBSCENE_REASON"] = None
+      vAR_data["RNN"]["INSULT_REASON"] = None
+      vAR_data["RNN"]["IDENTITY_HATE_REASON"] = None
+      vAR_data["RNN"]["TOXIC_REASON"] = None
+      vAR_data["RNN"]["THREAT_REASON"] = None
       
    return vAR_data 

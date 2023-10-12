@@ -24,58 +24,37 @@ import pandas as pd
 from google.cloud import bigquery
 import os
 
+
+
 def Profanity_Words_Check(vAR_val):
     vAR_input = vAR_val.replace('/','')
     vAR_input = vAR_val.replace('*','')
+    vAR_response_count = 0
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_BADWORDS"
-    vAR_sql = " SELECT * FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` order by badword_desc "
-    vAR_badwords_df = vAR_client.query(vAR_sql).to_dataframe()
-    # vAR_badwords_df = pd.read_csv('gs://dmv_elp_project/data/badwords_list.csv',header=None)
     vAR_result_message = ""
-    
-#---------------Profanity logic implementation with O(log n) time complexity-------------------
-    # Direct profanity check
-    vAR_badwords_df['BADWORD_DESC'] = vAR_badwords_df['BADWORD_DESC'].str.upper()
-    vAR_is_input_in_profanity_list = Binary_Search(vAR_badwords_df['BADWORD_DESC'],vAR_input)
-    if vAR_is_input_in_profanity_list!=-1:
-        vAR_result_message = 'Input ' +vAR_val+ ' matches with direct profanity - '+vAR_badwords_df['BADWORD_DESC'][vAR_is_input_in_profanity_list]
-        
-        return True,vAR_result_message
-    
-    # Reversal profanity check
+
+
     vAR_reverse_input = "".join(reversed(vAR_input)).upper()
-    vAR_is_input_in_profanity_list = Binary_Search(vAR_badwords_df['BADWORD_DESC'],vAR_reverse_input)
-    if vAR_is_input_in_profanity_list!=-1:
-        vAR_result_message = 'Input ' +vAR_val+ ' matches with reversal profanity - '+vAR_badwords_df['BADWORD_DESC'][vAR_is_input_in_profanity_list]
-        return True,vAR_result_message
-    
-    # Number replacement profanity check
     vAR_number_replaced = Number_Replacement(vAR_input).upper()
-    vAR_is_input_in_profanity_list = Binary_Search(vAR_badwords_df['BADWORD_DESC'],vAR_number_replaced)
-    if vAR_is_input_in_profanity_list!=-1: 
-       vAR_result_message = 'Input ' +vAR_val+ ' matches with number replacement profanity - '+vAR_badwords_df['BADWORD_DESC'][vAR_is_input_in_profanity_list]
-       return True,vAR_result_message
+    vAR_rev_number_replaced = Number_Replacement(vAR_reverse_input).upper()
+    vAR_direct_profanity_sql = " SELECT count(1) as cnt FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` where upper(BADWORD_DESC)='"+vAR_input+"' OR upper(BADWORD_DESC)='"+vAR_reverse_input+"' OR upper(BADWORD_DESC)='"+vAR_number_replaced+"' OR upper(BADWORD_DESC)='"+vAR_rev_number_replaced+"'"
+
+
     
-    # Reversal Number replacement profanity check(5sa->as5->ass)
-    vAR_number_replaced = Number_Replacement(vAR_reverse_input).upper()
-    vAR_is_input_in_profanity_list = Binary_Search(vAR_badwords_df['BADWORD_DESC'],vAR_number_replaced)
-    if vAR_is_input_in_profanity_list!=-1:  
-        vAR_result_message = 'Input ' +vAR_val+ ' matches with reversal number replacement profanity - '+vAR_badwords_df['BADWORD_DESC'][vAR_is_input_in_profanity_list]
+    #Profanity check
+
+    vAR_query_job = vAR_client.query(vAR_direct_profanity_sql)
+    vAR_results = vAR_query_job.result()
+    for row in vAR_results:
+        vAR_response_count = row.get('cnt')
+    if vAR_response_count>=1:
+        vAR_result_message = 'Input ' +vAR_val+ ' matches with profanity words list.'
         return True,vAR_result_message
-
-    # Mirror word check
-    # vAR_mirror_string = MirrorString(vAR_val)
-    # if vAR_mirror_string is not None:
-    #     vAR_is_input_in_profanity_list = Binary_Search(vAR_badwords_df['BADWORD_DESC'],vAR_mirror_string)
-    #     if vAR_is_input_in_profanity_list!=-1:
-    #         vAR_result_message = 'Input ' +vAR_val+ ' matches with mirror word profanity - '+vAR_badwords_df['BADWORD_DESC'][vAR_is_input_in_profanity_list]
-    #         return True,vAR_result_message
-    # else:
-    #     print('Mirror string found as none')
-
 
     return False,vAR_result_message
+
+
 
 
 def Number_Replacement(vAR_val):
@@ -99,29 +78,6 @@ def Number_Replacement(vAR_val):
 
 
 
-def Binary_Search(data, x):
-    vAR_low = 0
-    vAR_high = len(data) - 1
-    vAR_mid = 0
-    i =0
-    while vAR_low <= vAR_high:
-        i = i+1
-        vAR_mid = (vAR_high + vAR_low) // 2
-        
-        # If x is greater, ignore left half
-        if data[vAR_mid] < x:
-            vAR_low = vAR_mid + 1
- 
-        # If x is smaller, ignore right half
-        elif data[vAR_mid] > x:
-            vAR_high = vAR_mid - 1
- 
-        # means x is present at mid
-        else:
-            return vAR_mid
- 
-    # If we reach here, then the element was not present
-    return -1
 
 def MirrorString(vAR_input):
     vAR_input = vAR_input.replace('/','')

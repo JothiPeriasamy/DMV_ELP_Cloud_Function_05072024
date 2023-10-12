@@ -116,24 +116,32 @@ def ProcessPartialOrders(request):
 
                 vAR_output_result_objects = [pool.apply_async(Process_ELP_Request,args=(vAR_configuration_df,elp_idx,vAR_request_url,vAR_headers)) for elp_idx in range(vAR_configuration_df_len)]
 
+                time.sleep(10)
+
                 for vAR_result in vAR_output_result_objects:
-                    vAR_result_op = vAR_result.get()
-                    vAR_result_op['RUN_ID'] = vAR_run_id
-                    print('Time taking in for loop - ',time.time()-vAR_timeout_start)
                     if (time.time()-vAR_timeout_start)<vAR_timeout_secs:
-                        f.write(vAR_result_op["Process Time"])
+
+                        
+                        print('Time taking in for loop - ',time.time()-vAR_timeout_start)
+                    
                         
                         
                         # If there is any error in insert response method exception block will log the error message for that configuration. So, trying to delete request table record in finally block
                         try:      
+                                vAR_result_op = vAR_result.get()
+                                vAR_result_op['RUN_ID'] = vAR_run_id
+
+                                f.write(vAR_result_op["Process Time"])
                             
-                            vAR_last_processed_record = vAR_result_op['LICENSE_PLATE_CONFIG']
-                            if 'Process Time' in vAR_result_op.keys():
-                                del vAR_result_op['Process Time']
-                            if 'REQUEST_FILE_NAME' in vAR_result_op:
-                                vAR_s3_url = vAR_result_op['REQUEST_FILE_NAME']
-                            Insert_Response_to_Bigquery(pd.DataFrame(vAR_result_op,index=[0]))
-                            print(vAR_result_op['LICENSE_PLATE_CONFIG']+' Inserted into response table')
+                                vAR_last_processed_record = vAR_result_op['LICENSE_PLATE_CONFIG']
+                                if 'Process Time' in vAR_result_op.keys():
+                                    del vAR_result_op['Process Time']
+                                if 'REQUEST_FILE_NAME' in vAR_result_op:
+                                    vAR_s3_url = vAR_result_op['REQUEST_FILE_NAME']
+                                Insert_Response_to_Bigquery(pd.json_normalize(vAR_result_op))
+                                print(vAR_result_op['LICENSE_PLATE_CONFIG']+' Inserted into response table')
+
+                            
                             
                         except BaseException as e:
                             print('BASEEXCEPTIONERR IN INSERT RESPONSE - '+str(e))
@@ -162,10 +170,12 @@ def ProcessPartialOrders(request):
                                 vAR_err_response_dict['LICENSE_PLATE_CONFIG'] = vAR_result_op['LICENSE_PLATE_CONFIG']
                                 if 'REQUEST_FILE_NAME' in vAR_result_op:
                                     vAR_err_response_dict['REQUEST_FILE_NAME'] = vAR_result_op['REQUEST_FILE_NAME']
-                                InsertErrorLog(vAR_err_response_dict)         
+                                InsertErrorLog(vAR_err_response_dict) 
+
                     else:
                         UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name)
-                        raise TimeoutError('Timeout Error inside result iteration')
+                        raise TimeoutError('Timeout Error inside result iteration')        
+                        
                 
                 # Close Pool and let all the processes complete
                 pool.close()

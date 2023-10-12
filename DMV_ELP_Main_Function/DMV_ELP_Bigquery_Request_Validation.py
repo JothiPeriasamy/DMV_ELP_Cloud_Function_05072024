@@ -50,6 +50,9 @@ def ReadNotProcessedRequestData():
     )
 
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()
+
+    
+
     return vAR_df
 
 
@@ -103,9 +106,25 @@ def GetCurrentDateResponseCount():
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
     vAR_query_job = vAR_client.query(
-        " SELECT count(1) as cnt,RUN_ID FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where date(created_dt) = current_date() group by RUN_ID having RUN_ID=max(RUN_ID)  order by RUN_ID desc limit 1 "
+        " SELECT count(distinct LICENSE_PLATE_CONFIG) as cnt,RUN_ID FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where date(created_dt) = current_date() group by RUN_ID having RUN_ID=max(RUN_ID)  order by RUN_ID desc limit 1 "
     )
 
+    vAR_results = vAR_query_job.result()  # Waits for job to complete.
+    print('Total number of processed records - ',vAR_results)
+    for row in vAR_results:
+        vAR_response_count = row.get('cnt')
+    return vAR_response_count
+
+
+
+def DuplicateRecordCheck(vAR_last_processed_record,vAR_payment_date):
+    vAR_response_count = 0
+    vAR_client = bigquery.Client()
+    vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
+    vAR_query = " SELECT count(1) as cnt FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where LICENSE_PLATE_CONFIG='"+vAR_last_processed_record+ "' and ORDER_PAYMENT_DATE=parse_date('%m/%d/%E4Y','"+vAR_payment_date+"')"
+    print("DuplicateRecordCheck Query - ",vAR_query)
+    vAR_query_job = vAR_client.query(vAR_query)
+    
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
     print('Total number of processed records - ',vAR_results)
     for row in vAR_results:
@@ -169,3 +188,7 @@ def GetMetadataLatestRecordTimeDiff():
         vAR_inprogress_cnt +=1
         print('vAR_inprogress_cnt - ',vAR_inprogress_cnt)
     return vAR_inprogress_cnt
+
+
+
+

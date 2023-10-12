@@ -48,11 +48,83 @@ from DMV_ELP_Response_To_S3 import Upload_Response_To_S3
 from DMV_ELP_Request_To_AWS_Processed import Move_Request_AWS_Processed
 from DMV_ELP_Audit_Log import Insert_Audit_Log
 from DMV_ELP_Get_Max_Plate_Count import GetMaxPlateTypeCount,GetMaxRunIdFromResponse
+from DMV_ELP_Update_ChatGPT_Response import ReadRecordsToUpdate,UpdateGPTRecords
+from DMV_ELP_ChatGPT_Recommendation import ELP_Recommendation
 
 pd.set_option('display.max_colwidth', 500)
 
 
+
+
 def Process_ELP_Orders(request):
+
+   print('Value of CHATGPT_RESPONSE_UPDATE - ',os.environ["CHATGPT_RESPONSE_UPDATE"])
+   if eval(os.environ["CHATGPT_RESPONSE_UPDATE"]):
+
+      vAR_df = ReadRecordsToUpdate()
+      print('Number of records to update - ',len(vAR_df))
+      vAR_number_of_update = 0
+      for index, row in vAR_df.iterrows():
+
+         try:
+            vAR_input = row["LICENSE_PLATE_CONFIG"].upper()
+            vAR_response = ELP_Recommendation(vAR_input)
+            response_json = {}
+
+            vAR_dict1_start_index = vAR_response.index('{')
+            vAR_dict1_end_index = vAR_response.index('}')
+
+
+            vAR_dict2_start_index = vAR_response.rfind('{')
+            vAR_dict2_end_index = vAR_response.rfind('}')
+
+            vAR_result_dict = vAR_response[vAR_dict1_start_index:vAR_dict1_end_index+1]
+            vAR_conclusion_dict = vAR_response[vAR_dict2_start_index:vAR_dict2_end_index+1]
+
+            vAR_result_df = pd.DataFrame(json.loads(vAR_result_dict))
+            vAR_conclusion_df = pd.DataFrame(json.loads(vAR_conclusion_dict))
+
+            response_json["MODEL"] = "GPT"
+            response_json["RECOMMENDATION"] = vAR_conclusion_df["Conclusion"][0]
+            response_json["REASON"] = vAR_conclusion_df["Conclusion Reason"][0] 
+            response_json["RECOMMENDED_CONFIGURATION"] = vAR_conclusion_df["Recommended Configuration"][0]
+            response_json["RECOMMENDATION_REASON"] = vAR_conclusion_df["Recommendation Reason"][0]
+
+            response_json["SEVERE_TOXIC_REASON"] = vAR_result_df["Reason"][0]
+            response_json["OBSCENE_REASON"] = vAR_result_df["Reason"][1]
+            response_json["INSULT_REASON"] = vAR_result_df["Reason"][2]
+            response_json["IDENTITY_HATE_REASON"] = vAR_result_df["Reason"][3]
+            response_json["TOXIC_REASON"] = vAR_result_df["Reason"][4]
+            response_json["THREAT_REASON"] = vAR_result_df["Reason"][5]
+
+            response_json["SEVERE_TOXIC"] = vAR_result_df["Probability"][0]
+            response_json["OBSCENE"] = vAR_result_df["Probability"][1]
+            response_json["INSULT"] = vAR_result_df["Probability"][2]
+            response_json["IDENTITY_HATE"] = vAR_result_df["Probability"][3]
+            response_json["TOXIC"] = vAR_result_df["Probability"][4]
+            response_json["THREAT"] = vAR_result_df["Probability"][5]
+
+
+            print('GPT response json - ',response_json)
+            vAR_number_of_update += UpdateGPTRecords(vAR_input,response_json)
+
+         except BaseException as e:
+
+            print('Error while processing configuration - ',vAR_input)
+            print('BASEEXCEPTIONERR IN UPDATE GPT RESPONSE - '+str(e))
+            print('UPDATE GPT RESPONSE Error Traceback - '+str(traceback.print_exc()))
+
+
+
+      print('vAR_number_of_update - ',vAR_number_of_update)
+
+
+      
+      return {"Message": "ChatGPT Response Successfully Updated"}
+
+
+
+
 
    vAR_metadata_time_diff = GetMetadataLatestRecordTimeDiff()
 
@@ -98,7 +170,7 @@ def Process_ELP_Orders(request):
                vAR_err_message = "No valid csv request file found in path - "+vAR_s3_url+os.environ["S3_REQUEST_BUCKET_NAME"]+'/'+os.environ["AWS_REQUEST_PATH"]
                raise Exception(vAR_err_message)
 
-            vAR_batch_elp_configuration_raw = pd.read_csv(vAR_s3_url,delimiter=';')
+            vAR_batch_elp_configuration_raw = pd.read_csv(vAR_s3_url,delimiter=';',dtype={'DOUBLE OR SINGLE': str, 'VIN': str,'REGISTERED OWNER ZIP':str})
             vAR_batch_elp_configuration = PreProcessRequest(vAR_batch_elp_configuration_raw,vAR_s3_url)
             vAR_number_of_configuration = len(vAR_batch_elp_configuration)
             Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configuration)
@@ -131,27 +203,39 @@ def Process_ELP_Orders(request):
 
          vAR_output_result_objects = [pool.apply_async(Process_ELP_Request,args=(vAR_configuration_df,elp_idx,vAR_request_url,vAR_headers)) for elp_idx in range(vAR_configuration_df_len)]
 
+         time.sleep(5)
+         
          for vAR_result in vAR_output_result_objects:
-            vAR_result_op = vAR_result.get()
-            print('Time taking in for loop - ',time.time()-vAR_timeout_start)
+            
+            
             if (time.time()-vAR_timeout_start)<vAR_timeout_secs:
-               f.write(vAR_result_op["Process Time"])
-               
+               print('Time taking in for loop - ',time.time()-vAR_timeout_start)
+            
                
                # If there is any error in insert response method exception block will log the error message for that configuration. So, trying to delete request table record in finally block
                try:      
-                  
-                  vAR_output = vAR_output.append(vAR_result_op,ignore_index=True)
-                  vAR_last_processed_record = vAR_result_op['LICENSE_PLATE_CONFIG']
-                  if 'Process Time' in vAR_result_op.keys():
-                     del vAR_result_op['Process Time']
-                  
-                  vAR_result_op["RUN_ID"] = vAR_max_run_id
-                     
-                  Insert_Response_to_Bigquery(pd.DataFrame(vAR_result_op,index=[0]))
+                     vAR_result_op = vAR_result.get()
 
-                  print(vAR_result_op['LICENSE_PLATE_CONFIG']+' Inserted into response table')
+                     f.write(vAR_result_op["Process Time"])
                   
+                     # vAR_output = vAR_output.append(vAR_result_op,ignore_index=True)
+                     vAR_last_processed_record = vAR_result_op['LICENSE_PLATE_CONFIG']
+                     vAR_payment_date  =vAR_result_op['ORDER_PAYMENT_DATE']
+                     if 'Process Time' in vAR_result_op.keys():
+                        del vAR_result_op['Process Time']
+                     vAR_result_op["RUN_ID"] = vAR_max_run_id
+                     # # Duplicate Check
+                     # vAR_duplicate_count = DuplicateRecordCheck(vAR_last_processed_record,vAR_payment_date)
+                     # if vAR_duplicate_count>0:
+                     #    print('Duplicate Record found for configuration and order payment date - ',vAR_last_processed_record)
+                     # else:
+                     print('Result before bq insertion - ',vAR_result_op)
+                     Insert_Response_to_Bigquery(pd.json_normalize(vAR_result_op))
+
+                     print(vAR_result_op['LICENSE_PLATE_CONFIG']+' Inserted into response table')
+
+                  
+                     
                except BaseException as e:
                   print('BASEEXCEPTIONERR IN INSERT RESPONSE - '+str(e))
                   print('Error Traceback - '+str(traceback.print_exc()))
@@ -167,7 +251,7 @@ def Process_ELP_Orders(request):
                      DeleteProcessedConfigs(vAR_result_op['LICENSE_PLATE_CONFIG'])
                      print(vAR_result_op['LICENSE_PLATE_CONFIG']+' deleted from request table')
                      vAR_processed_configs.append(vAR_result_op['LICENSE_PLATE_CONFIG'])
-                     vAR_output = vAR_output.append(vAR_result_op,ignore_index=True)
+                     # vAR_output = vAR_output.append(vAR_result_op,ignore_index=True)
                      vAR_last_processed_record = vAR_result_op['LICENSE_PLATE_CONFIG']
                   except BaseException as e:
                      print('BASEEXCEPTIONERR IN DELETE REQUEST - ',str(e))
@@ -178,11 +262,13 @@ def Process_ELP_Orders(request):
                      vAR_err_response_dict['LICENSE_PLATE_CONFIG'] = vAR_result_op['LICENSE_PLATE_CONFIG']
                      vAR_err_response_dict['REQUEST_FILE_NAME'] = vAR_s3_url
                      InsertErrorLog(vAR_err_response_dict)
-                     
-                           
+
             else:
                UpdateMetadataTable(vAR_s3_url)
                raise TimeoutError('Timeout Error inside result iteration')
+                     
+                        
+            
             
             
 
@@ -321,6 +407,8 @@ def PreProcessRequest(vAR_batch_elp_configuration_raw,vAR_s3_url):
  'ORDER NUMBER & CODE':'ORDER_NUMBER_CODE','REGISTERED OWNER NAME':'REGISTERED_OWNER_NAME','REGISTERED OWNER ADDRESS':'REGISTERED_OWNER_ADDRESS',
  'REGISTERED OWNER CITY':'REGISTERED_OWNER_CITY','REGISTERED OWNER ZIP':'REGISTERED_OWNER_ZIP','ORDER PRINTED DATE':'ORDER_PRINTED_DATE',
  'TECH ID':'TECH_ID','ORDER PAYMENT DATE':'ORDER_PAYMENT_DATE'}, inplace = True)
+
+
    vAR_batch_elp_configuration_raw["ORDER_GROUP_ID"] = vAR_batch_elp_configuration_raw["ORDER_NUMBER_CODE"].str[:-1]
    vAR_batch_elp_configuration_raw['PLATE_TYPE_COUNT'] = vAR_batch_elp_configuration_raw.groupby('LICENSE_PLATE_DESC')['LICENSE_PLATE_DESC'].transform('count')
    vAR_batch_elp_configuration_raw['REQUEST_FILE_NAME'] = vAR_number_of_configuration*[vAR_s3_url]
@@ -424,7 +512,3 @@ def ResponsePathValidation(vAR_output_copy,vAR_records_to_process,vAR_response_c
       
       vAR_err_message = "Response folder not found - s3://"+os.environ["S3_RESPONSE_BUCKET_NAME"]+'/'+os.environ["AWS_RESPONSE_PATH"]+". So, created response folder"
       raise Exception(vAR_err_message)
-  
-     
-
-

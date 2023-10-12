@@ -86,7 +86,7 @@ def GetResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_n
     vAR_run_id = 0
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
-    vAR_query = " SELECT count(1) as cnt,RUN_ID FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where REQUEST_DATE = '"+vAR_partial_file_date+"'"+" and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' group by RUN_ID"
+    vAR_query = " SELECT count(distinct LICENSE_PLATE_CONFIG) as cnt,RUN_ID FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where REQUEST_DATE = '"+vAR_partial_file_date+"'"+" and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' group by RUN_ID"
     vAR_query_job = vAR_client.query(vAR_query)
     print('Response count Query - ',vAR_query)
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
@@ -103,7 +103,7 @@ def GetPartialResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial
     vAR_client = bigquery.Client()
     vAR_table_name = "DMV_ELP_MLOPS_RESPONSE"
     vAR_query_job = vAR_client.query(
-        " SELECT count(1) as cnt FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where REQUEST_DATE = '"+vAR_partial_file_date+"'"+" and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' and date(CREATED_DT)=current_date()"
+        " SELECT count(distinct LICENSE_PLATE_CONFIG) as cnt FROM "+ "`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"+  " where REQUEST_DATE = '"+vAR_partial_file_date+"'"+" and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name+"' and date(CREATED_DT)=current_date()"
     )
 
     vAR_results = vAR_query_job.result()  # Waits for job to complete.
@@ -168,10 +168,49 @@ def ReadNotProcessedRequestData(vAR_partial_file_date,vAR_partial_file_name):
 
 def ReadPartialResponseTable(vAR_partial_file_date,vAR_partial_file_name):
     vAR_client = bigquery.Client()
-    vAR_request_table_name = "DMV_ELP_MLOPS_RESPONSE"
+    vAR_response_table_name = "DMV_ELP_MLOPS_RESPONSE"
     # RUN_ID no need in where clause. Because,request file name will be unique for respective response records
     vAR_sql =(
-        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table_name+"`"+" where REQUEST_DATE='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name +"' and date(CREATED_DT)=current_date() order by PLATE_TYPE_COUNT DESC,LICENSE_PLATE_DESC ASC,LICENSE_PLATE_CONFIG ASC"
+        """SELECT
+  * EXCEPT(result,res)
+FROM (
+  SELECT
+    *,
+    ROW_NUMBER() OVER(PARTITION BY LICENSE_PLATE_CONFIG ORDER BY result, MODEL)AS res
+  FROM (
+    SELECT
+      *,
+      MAX(RECOMMENDATION) OVER(PARTITION BY RECOMMENDATION) AS result
+    FROM
+      `{}.{}.{}`
+    WHERE
+      DATE(created_dt)=CURRENT_DATE())
+  WHERE
+    MODEL IS NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}' AND date(created_dt)=current_date()
+  UNION ALL
+  SELECT
+    *
+  FROM (
+    SELECT
+      *,
+      ROW_NUMBER() OVER(PARTITION BY LICENSE_PLATE_CONFIG ORDER BY result, MODEL DESC)AS res
+    FROM (
+      SELECT
+        *,
+        MAX(RECOMMENDATION) OVER(PARTITION BY RECOMMENDATION) AS result
+      FROM
+        `{}.{}.{}`
+      WHERE
+        DATE(created_dt)=CURRENT_DATE())
+    WHERE
+      MODEL IS NOT NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}' AND date(created_dt)=current_date())
+  WHERE
+    res=2 )
+ORDER BY
+  PLATE_TYPE_COUNT DESC,
+  LICENSE_PLATE_DESC ASC,
+  LICENSE_PLATE_CONFIG ASC
+""".format(os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name,os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name)
     )
 
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()
@@ -180,14 +219,56 @@ def ReadPartialResponseTable(vAR_partial_file_date,vAR_partial_file_name):
 
 def ReadResponseTable(vAR_partial_file_date,vAR_partial_file_name):
     vAR_client = bigquery.Client()
-    vAR_request_table_name = "DMV_ELP_MLOPS_RESPONSE"
+    vAR_response_table_name = "DMV_ELP_MLOPS_RESPONSE"
     # RUN_ID no need in where clause. Because,request file name will be unique for respective response records
     vAR_sql =(
-        "select * from `"+ os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_request_table_name+"`"+" where REQUEST_DATE='"+vAR_partial_file_date+"' and lower(REQUEST_FILE_NAME) like '%"+vAR_partial_file_name +"' order by PLATE_TYPE_COUNT DESC,LICENSE_PLATE_DESC ASC,LICENSE_PLATE_CONFIG ASC"
+        """SELECT
+  * EXCEPT(result,res)
+FROM (
+  SELECT
+    *,
+    ROW_NUMBER() OVER(PARTITION BY LICENSE_PLATE_CONFIG ORDER BY result, MODEL)AS res
+  FROM (
+    SELECT
+      *,
+      MAX(RECOMMENDATION) OVER(PARTITION BY RECOMMENDATION) AS result
+    FROM
+      `{}.{}.{}`
+    WHERE
+      DATE(created_dt)=CURRENT_DATE())
+  WHERE
+    MODEL IS NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}'
+  UNION ALL
+  SELECT
+    *
+  FROM (
+    SELECT
+      *,
+      ROW_NUMBER() OVER(PARTITION BY LICENSE_PLATE_CONFIG ORDER BY result, MODEL DESC)AS res
+    FROM (
+      SELECT
+        *,
+        MAX(RECOMMENDATION) OVER(PARTITION BY RECOMMENDATION) AS result
+      FROM
+        `{}.{}.{}`
+      WHERE
+        DATE(created_dt)=CURRENT_DATE())
+    WHERE
+      MODEL IS NOT NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}')
+  WHERE
+    res=2 )
+ORDER BY
+  PLATE_TYPE_COUNT DESC,
+  LICENSE_PLATE_DESC ASC,
+  LICENSE_PLATE_CONFIG ASC
+""".format(os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name,os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name)
     )
 
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()
-    return vAR_df
+
+    #  Remove Duplicate If there's any
+    vAR_newdf = vAR_df.drop_duplicates(subset = ['LICENSE_PLATE_CONFIG','ORDER_PAYMENT_DATE'],keep = 'last').reset_index(drop = True)
+    return vAR_newdf
 
 
 def PostProcessingReport(vAR_partial_file_date,vAR_partial_file_name):

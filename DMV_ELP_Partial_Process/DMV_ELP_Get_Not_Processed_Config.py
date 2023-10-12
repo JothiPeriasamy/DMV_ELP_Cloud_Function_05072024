@@ -50,6 +50,12 @@ def FilterNotProcessedRecordsFromGCSRequestFile(vAR_partial_file_date,vAR_partia
     vAR_given_date_response_count,vAR_run_id = GetResponseCountForGivenDateAndFile(vAR_partial_file_date,vAR_partial_file_name)
     PreProcessingReport(vAR_given_date_request_count,vAR_given_date_response_count,vAR_query_request_df_len)
 
+    print('vAR_gcs_request_df columns - ',vAR_gcs_request_df.columns)
+    print('vAR_query_response_df columns - ',vAR_query_response_df.columns)
+
+    print('vAR_gcs_request_df len - ',len(vAR_gcs_request_df))
+    print('vAR_query_response_df len - ',len(vAR_query_response_df))
+
     # Filter not processed records from gcp request file(request file config not in response table)
     vAR_not_processed_from_gcs_request_df = vAR_gcs_request_df[~vAR_gcs_request_df['LICENSE_PLATE_CONFIG'].isin(vAR_query_response_df['LICENSE_PLATE_CONFIG'])]
     print('vAR_not_processed_from_gcs_request_df LENGTH((total request file config not in response table) - ',len(vAR_not_processed_from_gcs_request_df))

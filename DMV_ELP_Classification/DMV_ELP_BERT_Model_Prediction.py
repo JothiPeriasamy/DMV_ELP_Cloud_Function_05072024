@@ -23,6 +23,9 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 import pandas as pd
 import numpy as np
 import tensorflow as tf
+from tensorflow import keras
+
+import requests
 
 from transformers import TFBertModel,  BertConfig, BertTokenizerFast, TFAutoModel
 from random import randint
@@ -32,6 +35,9 @@ import gcsfs
 import h5py
 import traceback
 import os
+
+from tensorflow.keras.models import model_from_json
+from tensorflow.keras.optimizers import Adam
 
 def BERT_Model_Result(vAR_input_text):
     
@@ -46,6 +52,8 @@ def BERT_Model_Result(vAR_input_text):
 
     # Max length of tokens
     max_length = 128
+
+    tokenizer_start_time = time.time()
 
     # Load transformers config and set output_hidden_states to False
     config = BertConfig.from_pretrained(model_name)
@@ -63,13 +71,38 @@ def BERT_Model_Result(vAR_input_text):
     return_token_type_ids = False,
     return_attention_mask = True,
     verbose = True)
+
+    print("---Bert Model tokenizer loading time %s seconds ---" % (time.time() - tokenizer_start_time)) 
+
     start_time = time.time()
+
+
+    # Method for h5 format
      
     MODEL_PATH = "gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"]
     FS = gcsfs.GCSFileSystem()
     with FS.open(MODEL_PATH, 'rb') as model_file:
          model_gcs = h5py.File(model_file, 'r')
          vAR_load_model = tf.keras.models.load_model(model_gcs,compile=False)
+
+    # Method for pb format
+
+    # vAR_load_model = keras.models.load_model("gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"])
+
+    # Method for json format
+    
+    # load json and create model
+    # json_file = open("gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"]+'/model.json', 'r')
+    # loaded_model_json = json_file.read()
+    # json_file.close()
+    # vAR_load_model = model_from_json(loaded_model_json)
+    # # load weights into new model
+    # vAR_load_model.load_weights("gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"]+'/model.h5')
+    # print("Loaded model from disk")
+
+    # evaluate loaded model on test data
+    # optimizer = Adam(lr=1e-5, decay=1e-6)
+    # vAR_load_model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     
     
     print("---Bert Model loading time %s seconds ---" % (time.time() - start_time))
@@ -77,18 +110,134 @@ def BERT_Model_Result(vAR_input_text):
 
     vAR_model_result = vAR_load_model.predict(x={'input_ids': vAR_test_x['input_ids'], 'attention_mask': vAR_test_x['attention_mask']},batch_size=32)
     
+    print('vAR_model_result - ',vAR_model_result)
     
     vAR_result_data = pd.DataFrame(vAR_model_result,columns=vAR_target_columns)
     vAR_target_sum = (np.sum(vAR_model_result)).round(2)
     vAR_result_data.index = pd.Index(['Percentage'],name='category')
     vAR_result_data = vAR_result_data.astype(float).round(2)
+
+    print('BERT vAR_result_data - ',vAR_result_data)
     
     # If Highest probability more than 50%, then configuration is denied
 
     vAR_max_prob = np.array(vAR_model_result).max()
     print('arg max val - ',vAR_max_prob)
 
-    if (vAR_max_prob)>=0.5:
+    if (vAR_max_prob)>0.3:
         return False,vAR_result_data,vAR_target_sum
     else:
         return True,vAR_result_data,vAR_target_sum
+
+
+
+
+
+
+
+
+
+# def BERT_Model_Result(vAR_input_text):
+    
+    
+    
+#     vAR_input_text = vAR_input_text.replace('/','')
+#     vAR_input_text = vAR_input_text.replace('*','')
+#     vAR_target_columns = ["TOXIC","SEVERE_TOXIC","OBSCENE","THREAT","INSULT","IDENTITY_HATE"]
+    
+#     # Name of the BERT model to use
+#     model_name = 'bert-base-uncased'
+
+#     # Max length of tokens
+#     max_length = 128
+
+#     tokenizer_start_time = time.time()
+
+#     # Load transformers config and set output_hidden_states to False
+#     config = BertConfig.from_pretrained(model_name)
+
+#     # Load BERT tokenizer
+#     tokenizer = BertTokenizerFast.from_pretrained(pretrained_model_name_or_path = model_name, config = config)
+    
+#     vAR_test_x = tokenizer(
+#     text=vAR_input_text,
+#     add_special_tokens=True,
+#     max_length=max_length,
+#     truncation=True,
+#     padding='max_length', 
+#     return_tensors='tf',
+#     return_token_type_ids = False,
+#     return_attention_mask = True,
+#     verbose = True)
+
+#     print("---Bert Model tokenizer loading time %s seconds ---" % (time.time() - tokenizer_start_time)) 
+
+#     start_time = time.time()
+
+
+#     # Method for h5 format
+     
+#     # MODEL_PATH = "gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"]
+#     # FS = gcsfs.GCSFileSystem()
+#     # with FS.open(MODEL_PATH, 'rb') as model_file:
+#     #      model_gcs = h5py.File(model_file, 'r')
+#     #      vAR_load_model = tf.keras.models.load_model(model_gcs,compile=False)
+
+#     # Method for pb format
+
+#     # vAR_load_model = keras.models.load_model("gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"])
+
+#     # Method for json format
+    
+#     # load json and create model
+#     # json_file = open("gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"]+'/model.json', 'r')
+#     # loaded_model_json = json_file.read()
+#     # json_file.close()
+#     # vAR_load_model = model_from_json(loaded_model_json)
+#     # # load weights into new model
+#     # vAR_load_model.load_weights("gs://"+os.environ["GCS_BUCKET_NAME"]+"/"+os.environ["BERT_MODEL_LOAD_PATH"]+'/model.h5')
+#     # print("Loaded model from disk")
+
+#     # evaluate loaded model on test data
+#     # optimizer = Adam(lr=1e-5, decay=1e-6)
+#     # vAR_load_model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+    
+    
+    
+
+#     # vAR_model_result = vAR_load_model.predict(x={'input_ids': vAR_test_x['input_ids'], 'attention_mask': vAR_test_x['attention_mask']},batch_size=32)
+    
+
+#     vAR_url = os.environ["TF_SERVING_URL"]
+#     vAR_attention_mask_list = vAR_test_x['attention_mask'].numpy().flatten().tolist()
+#     vAR_input_ids_list = vAR_test_x['input_ids'].numpy().flatten().tolist()
+#     vAR_request = {'instances': [{'attention_mask':vAR_attention_mask_list,'input_ids':vAR_input_ids_list}]}
+
+#     vAR_model_result = requests.post(vAR_url, json = vAR_request)
+
+#     print('vAR_model_result - ',vAR_model_result.text)
+#     print('vAR_model_result type- ',type(vAR_model_result.text))
+
+
+#     print('vAR_model_result type- ',type(vAR_model_result))
+#     print('vAR_model_result - ',vAR_model_result)
+
+#     vAR_model_result = vAR_model_result.json()["predictions"]
+
+#     print("---Bert Model loading time %s seconds ---" % (time.time() - start_time))
+
+    
+#     vAR_result_data = pd.DataFrame(vAR_model_result,columns=vAR_target_columns)
+#     vAR_target_sum = (np.sum(vAR_model_result)).round(2)
+#     vAR_result_data.index = pd.Index(['Percentage'],name='category')
+#     vAR_result_data = vAR_result_data.astype(float).round(2)
+    
+#     # If Highest probability more than 50%, then configuration is denied
+
+#     vAR_max_prob = np.array(vAR_model_result).max()
+#     print('arg max val - ',vAR_max_prob)
+
+#     if (vAR_max_prob)>=0.5:
+#         return False,vAR_result_data,vAR_target_sum
+#     else:
+#         return True,vAR_result_data,vAR_target_sum

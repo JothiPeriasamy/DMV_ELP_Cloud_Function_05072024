@@ -34,38 +34,20 @@ def Pattern_Denial(input_text):
     # 1.3 numbers, 2 letters 000AA-000E0 RESERVED Between AA-E0
     # 2.4 numbers 1111 PREV. ASSIGNED Check R60 4E/4S
     # 3.5 numbers 11111 PREV. ASSIGNED Check R60 4E/4S
-    vAR_regex_pattern_data = Read_Bigquery_Data()
     
-    vAR_pattern = None
-    
-    for vAR_index, vAR_row in vAR_regex_pattern_data.iterrows():
-        vAR_result = re.findall(vAR_row['REGEX_CONFIGURATION'],input_text)
-        if len(vAR_result)==0:
-            pass
-        else:
-            vAR_pattern = vAR_row['DENIAL_PATTERN']
-            return False,vAR_pattern
-        
-    return True,vAR_pattern
-    
-    
-    
-def Read_Bigquery_Data():
-
     vAR_bqclient = bigquery.Client()
+    vAR_result = ''
+    vAR_denial_pattern = ''
 
-    # Download query results.
     vAR_table_name = "DMV_ELP_DENIED_PATTERN"
-    vAR_query_string = "SELECT * FROM "+"`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"`"
+    vAR_query_string = "SELECT REGEXP_CONTAINS('"+input_text+"',REGEX_CONFIGURATION) as result,DENIAL_PATTERN FROM "+"`"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` where REGEXP_CONTAINS('"+input_text+"',REGEX_CONFIGURATION)=true"
 
-    vAR_dataframe = (
-        vAR_bqclient.query(vAR_query_string)
-        .result()
-        .to_dataframe(
-            # Optionally, explicitly request to use the BigQuery Storage API. As of
-            # google-cloud-bigquery version 1.26.0 and above, the BigQuery Storage
-            # API is used by default.
-            create_bqstorage_client=True,
-        )
-    )
-    return vAR_dataframe
+    vAR_query_job = vAR_bqclient.query(vAR_query_string)
+    vAR_results = vAR_query_job.result()
+    for row in vAR_results:
+        vAR_result = row.get('result')
+        vAR_denial_pattern = row.get('DENIAL_PATTERN')
+    if len(vAR_denial_pattern)>0:
+        return False,vAR_denial_pattern
+    else:
+        return True,vAR_denial_pattern

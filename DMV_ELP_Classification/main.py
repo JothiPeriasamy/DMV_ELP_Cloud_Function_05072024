@@ -24,6 +24,7 @@ Google Cloud Serverless Computing   | DMV Consultant  | Ajay Gupta | Initial  | 
 import json
 import traceback
 import os
+import pandas as pd
 
 from DMV_ELP_Request_PreValidation import Pre_Request_Validation
 from DMV_ELP_Public_Profanity_Validation import Profanity_Words_Check
@@ -32,10 +33,12 @@ from DMV_ELP_Previously_Denied_Config_Validation import Previously_Denied_Config
 
 from DMV_ELP_Pattern_Denial import Pattern_Denial
 
+# from DMV_ELP_BERT_Test import BERT_Model_Result
 from DMV_ELP_BERT_Model_Prediction import BERT_Model_Result
 from DMV_ELP_LSTM_Model_Prediction import LSTM_Model_Result
 from DMV_ELP_Get_License_Plate_Code import GetPlateCode
 from DMV_ELP_Get_Max_Plate_Count import GetMaxPlateTypeCount,GetMaxPlateTypeCountPartial
+from DMV_ChatGPT_Recommendation import ELP_Recommendation
 
 def ELP_Validation(request):
     
@@ -85,7 +88,7 @@ def ELP_Validation(request):
             if len(vAR_platecode_error_message)>0:
                 vAR_error_message['Error Message'] = vAR_platecode_error_message
             # It can be changed later
-            vAR_model = os.environ["MODEL"]
+            # vAR_model = os.environ["MODEL"]
             response_json["SG_ID"] = vAR_sg_id
 
             if vAR_max_plate_type_count is not None and request_json["PLATE_TYPE_COUNT"]==vAR_max_plate_type_count :
@@ -105,6 +108,9 @@ def ELP_Validation(request):
 
             elif vAR_profanity_result:
                 response_json["BADWORDS_CLASSIFICATION"] = vAR_result_message
+                response_json["GUIDELINE_FWORD_CLASSIFICATION"] = None
+                response_json["PREVIOUSLY_DENIED_CLASSIFICATION"] = None
+                response_json["RULE_BASED_CLASSIFICATION"] = None
                 response_json["RECOMMENDATION"] = "Denied"
                 response_json["REASON"] = "BADWORD"
                 response_json["MODEL"] = None
@@ -117,6 +123,8 @@ def ELP_Validation(request):
 
             if (vAR_fword_flag):
                 response_json["GUIDELINE_FWORD_CLASSIFICATION"] = vAR_fword_validation_message
+                response_json["PREVIOUSLY_DENIED_CLASSIFICATION"] = None
+                response_json["RULE_BASED_CLASSIFICATION"] = None
                 response_json["RECOMMENDATION"] = "Denied"
                 response_json["REASON"] = "CONFIGURATION FOUND IN FWORD GUIDELINES"
                 response_json["MODEL"] = None
@@ -134,6 +142,7 @@ def ELP_Validation(request):
             if (vAR_pdc_flag):
                 response_json["PREVIOUSLY_DENIED_CLASSIFICATION"] = vAR_previously_denied_validation_message
                 response_json["RECOMMENDATION"] = "Denied"
+                response_json["RULE_BASED_CLASSIFICATION"] = None
                 response_json["REASON"] = "CONFIGURATION FOUND IN PREVIOUSLY DENIED CONFIGURATIONS"
                 response_json["MODEL"] = None
                 response_json["MODEL_PREDICTION"] = {"PROFANITY_CLASSIFICATION":[{"IDENTITY_HATE":None,"INSULT":None,"OBSCENE":None,"SEVERE_TOXIC":None,
@@ -160,32 +169,79 @@ def ELP_Validation(request):
                 response_json["RULE_BASED_CLASSIFICATION"] = "NOT FOUND ANY DENIAL PATTERN"
                 response_json["RECOMMENDATION"] = "Accepted"
 
-            # Model prediction for configuration
-            if vAR_model.upper()=='RNN':
+            # RNN Model prediction for configuration
                 
-                vAR_result,vAR_result_data,vAR_result_target_sum = LSTM_Model_Result(vAR_input_text)
-                
-                
-            elif vAR_model.upper()=='BERT':
-
-                vAR_result,vAR_result_data,vAR_result_target_sum = BERT_Model_Result(vAR_input_text)
-                
+            vAR_result,vAR_result_data,vAR_result_target_sum = LSTM_Model_Result(vAR_input_text)
             vAR_result_data = str(vAR_result_data.to_json(orient='records'))
-
             if not vAR_result:
+                print('Config denied by RNN Model - ',vAR_input_text)
                 vAR_recommendation = "Denied"
                 vAR_recommendation_reason = "Highest Profanity category probability should be below the threshold value(0.5)"
-                response_json["RECOMMENDATION"] = vAR_recommendation
-                response_json["REASON"] = vAR_recommendation_reason
+                
+                response_json["RNN"] = {"PROFANITY_CLASSIFICATION":json.loads(str(vAR_result_data)),"SUM_OF_ALL_CATEGORIES":float(vAR_result_target_sum),"RECOMMENDATION":vAR_recommendation,"REASON":vAR_recommendation_reason,"MODEL":"RNN"}
+
+                print('Response from RNN Denied - ',response_json)
+
+                
             else:
+
                 vAR_recommendation = "Accepted"
                 vAR_recommendation_reason = "Since Highest Profanity category probability less than the threshold value(0.5), configuration accepted"
-                response_json["RECOMMENDATION"] = vAR_recommendation
-                response_json["REASON"] = vAR_recommendation_reason
 
-            response_json["MODEL"] = vAR_model
-            response_json["MODEL_PREDICTION"] = {"PROFANITY_CLASSIFICATION":json.loads(str(vAR_result_data)),"SUM_OF_ALL_CATEGORIES":float(vAR_result_target_sum)}
+                
+                response_json["RNN"] = {"PROFANITY_CLASSIFICATION":json.loads(str(vAR_result_data)),"SUM_OF_ALL_CATEGORIES":float(vAR_result_target_sum),"RECOMMENDATION":vAR_recommendation,"REASON":vAR_recommendation_reason,"MODEL":"RNN"}
+
+                print('Response from RNN Accepted- ',response_json)
+                
+            # GPT Model Call
+
+            result_json = ChatGPT_Recommendation(vAR_input_text)
+            response_json["GPT"] = result_json
+            print('Result json from GPT(till GPT) - ',response_json)
+
+            print('Response after GPT- ',response_json)
+
             return response_json
+
+                
+
+            
+                
+
+                
+                
+            # elif vAR_model.upper()=='BERT':
+
+            #     vAR_result,vAR_result_data,vAR_result_target_sum = BERT_Model_Result(vAR_input_text)
+
+            #     if not vAR_result:
+            #         vAR_recommendation = "Denied"
+            #         vAR_recommendation_reason = "Highest Profanity category probability should be below the threshold value(0.5)"
+            #         response_json["RECOMMENDATION"] = vAR_recommendation
+            #         response_json["REASON"] = vAR_recommendation_reason
+            #     else:
+            #         vAR_recommendation = "Accepted"
+            #         vAR_recommendation_reason = "Since Highest Profanity category probability less than the threshold value(0.5), configuration accepted"
+            #         response_json["RECOMMENDATION"] = vAR_recommendation
+            #         response_json["REASON"] = vAR_recommendation_reason
+                
+            #     vAR_result_data = str(vAR_result_data.to_json(orient='records'))
+
+            
+            #     response_json["MODEL"] = vAR_model
+            #     response_json["MODEL_PREDICTION"] = {"PROFANITY_CLASSIFICATION":json.loads(str(vAR_result_data)),"SUM_OF_ALL_CATEGORIES":float(vAR_result_target_sum)}
+            #     print('BERT response json - ',response_json)
+            #     return response_json
+
+            # elif vAR_model.upper()=='GPT':
+
+            #     result_json = ChatGPT_Recommendation(vAR_input_text)
+
+
+
+            
+                
+            
 
         else:
             response_json["ERROR_MESSAGE"] = vAR_error_message["Error Message"]
@@ -196,3 +252,48 @@ def ELP_Validation(request):
         print('Error Traceback4 - '+str(traceback.print_exc()))
         response_json["ERROR_MESSAGE"] = '### '+str(e)
         return response_json
+
+
+
+def ChatGPT_Recommendation(vAR_input_text):
+    response_json = {}
+
+    vAR_response = ELP_Recommendation(vAR_input_text)
+
+    vAR_dict1_start_index = vAR_response.index('{')
+    vAR_dict1_end_index = vAR_response.index('}')
+
+
+    vAR_dict2_start_index = vAR_response.rfind('{')
+    vAR_dict2_end_index = vAR_response.rfind('}')
+
+    vAR_result_dict = vAR_response[vAR_dict1_start_index:vAR_dict1_end_index+1]
+    vAR_conclusion_dict = vAR_response[vAR_dict2_start_index:vAR_dict2_end_index+1]
+
+    vAR_result_df = pd.DataFrame(json.loads(vAR_result_dict))
+    vAR_conclusion_df = pd.DataFrame(json.loads(vAR_conclusion_dict))
+
+    response_json["MODEL"] = "GPT"
+    response_json["RECOMMENDATION"] = vAR_conclusion_df["Conclusion"][0]
+    response_json["REASON"] = vAR_conclusion_df["Conclusion Reason"][0] 
+    response_json["RECOMMENDED_CONFIGURATION"] = vAR_conclusion_df["Recommended Configuration"][0]
+    response_json["RECOMMENDATION_REASON"] = vAR_conclusion_df["Recommendation Reason"][0]
+
+    response_json["SEVERE_TOXIC_REASON"] = vAR_result_df["Reason"][0]
+    response_json["OBSCENE_REASON"] = vAR_result_df["Reason"][1]
+    response_json["INSULT_REASON"] = vAR_result_df["Reason"][2]
+    response_json["HATE_REASON"] = vAR_result_df["Reason"][3]
+    response_json["TOXIC_REASON"] = vAR_result_df["Reason"][4]
+    response_json["THREAT_REASON"] = vAR_result_df["Reason"][5]
+
+    response_json["SEVERE_TOXIC"] = vAR_result_df["Probability"][0]
+    response_json["OBSCENE"] = vAR_result_df["Probability"][1]
+    response_json["INSULT"] = vAR_result_df["Probability"][2]
+    response_json["IDENTITY_HATE"] = vAR_result_df["Probability"][3]
+    response_json["TOXIC"] = vAR_result_df["Probability"][4]
+    response_json["THREAT"] = vAR_result_df["Probability"][5]
+
+    response_json["OVERALL_SCORE"] = None
+
+    print('GPT response json - ',response_json)
+    return response_json

@@ -25,3 +25,4 @@ google-cloud-bigquery
 boto3
 db-dtypes
 google-auth
+openai

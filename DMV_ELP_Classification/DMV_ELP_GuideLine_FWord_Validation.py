@@ -25,35 +25,27 @@ from google.cloud import bigquery
 import os
 
 
-def FWord_Validation(input_text):
-    
-    vAR_fword_data = Read_FWord_Guideline_Table()
-    
-    for vAR_index, vAR_row in vAR_fword_data.iterrows():
-        if(input_text==vAR_row['CONFIGURATION'] and vAR_row['APPROVED_OR_DENIED']=='Approved'):
-            return False,vAR_row['APPROVED_OR_DENIED'] + " - "+vAR_row['REASON']
-        elif(input_text==vAR_row['CONFIGURATION'] and vAR_row['APPROVED_OR_DENIED']=='Denied'):
-            return True,vAR_row['APPROVED_OR_DENIED'] + " - "+vAR_row['REASON']
-        else:
-            return False,'Given configuration is not found in DMV FWords Guideline'
-    
-    
-    
-def Read_FWord_Guideline_Table():
 
+def FWord_Validation(input_text):
+    vAR_response_count = 0
+    vAR_input = input_text.replace('/','')
+    vAR_input = input_text.replace('*','')
+    vAR_approved_denied = ''
+    vAR_reason = ''
     vAR_bqclient = bigquery.Client()
     vAR_table_name = "DMV_ELP_CONFIGURATION_GUIDELINES"
 
-    vAR_query_string = " SELECT CONFIGURATION,REASON,APPROVED_OR_DENIED FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` "
+    vAR_query_string = " SELECT CONFIGURATION,REASON,APPROVED_OR_DENIED FROM `"+os.environ["GCP_PROJECT_ID"]+"."+os.environ["GCP_BQ_SCHEMA_NAME"]+"."+vAR_table_name+"` where UPPER(CONFIGURATION)='"+vAR_input+"'  and APPROVED_OR_DENIED='Denied'"
+    
+    vAR_query_job = vAR_bqclient.query(vAR_query_string)
+    vAR_results = vAR_query_job.result()
+    for row in vAR_results:
+        vAR_response_count +=1
+        vAR_approved_denied = row.get('APPROVED_OR_DENIED')
+        vAR_reason = row.get('REASON')
 
-    vAR_dataframe = (
-        vAR_bqclient.query(vAR_query_string)
-        .result()
-        .to_dataframe(
-            # Optionally, explicitly request to use the BigQuery Storage API. As of
-            # google-cloud-bigquery version 1.26.0 and above, the BigQuery Storage
-            # API is used by default.
-            create_bqstorage_client=True,
-        )
-    )
-    return vAR_dataframe
+   
+    if vAR_response_count>=1:
+        return True,vAR_approved_denied+ " - "+vAR_reason
+    else:
+        return False,'Given configuration is not found in DMV FWords Guideline'

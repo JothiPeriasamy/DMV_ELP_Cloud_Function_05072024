@@ -27,7 +27,8 @@ import numpy as np
 
 
 def Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configuration):
-
+   
+   print('vAR_number_of_configuration in Insert_Request_To_Bigquery- ',vAR_number_of_configuration)
    vAR_config_df = vAR_batch_elp_configuration
    
 

@@ -30,6 +30,9 @@ tensorflow==2.9.1
 transformers==4.18.0
 bokeh==2.4.1
 google-cloud-bigquery
+google-cloud-storage
 gcsfs
 db-dtypes
 protobuf==3.19.4
+requests
+openai

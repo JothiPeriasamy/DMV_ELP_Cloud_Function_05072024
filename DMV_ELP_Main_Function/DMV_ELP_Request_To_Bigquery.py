@@ -44,6 +44,8 @@ def Insert_Request_To_Bigquery(vAR_batch_elp_configuration,vAR_number_of_configu
    vAR_config_df['UPDATED_USER'] = updated_by
    vAR_config_df['UPDATED_DT'] = updated_at
 
+   print('vAR_config_df types before request table insertion - ',vAR_config_df.info())
+
    client = bigquery.Client(project=os.environ["GCP_PROJECT_ID"])
 
    # Define table name, in format dataset.table_name
