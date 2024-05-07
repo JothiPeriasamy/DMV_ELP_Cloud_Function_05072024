@@ -30,7 +30,7 @@ client = AzureOpenAI(api_key = os.getenv("AZURE_API_KEY"),api_version=os.getenv(
 def ELP_Recommendation(vAR_input): 
 
     try:       
-    
+        response = None
         vAR_input_config = vAR_input.replace('/','')
         vAR_input_config = vAR_input_config.replace('*','')
         vAR_input_config = vAR_input_config.replace('#','')
@@ -39,36 +39,33 @@ def ELP_Recommendation(vAR_input):
         model=os.environ["AZURE_GPT_ENGINE"],
         messages=[
 
-            {"role":"system","content":"""Consider a california dmv customer applying new licese plate configuration. Perform below tasks for given word as below format:\n1.Please Provide the probability value and detailed explanation for each of the categories (profanity, obscene, insult, hate, toxic, threat) in table format.\n2.Deny the configuration if any one of the above categories probability value is greater than 0.3. Otherwise, accept the configuration.\n3.If it's denied, recommend new configuration which must not represent/fall any of the profanity,insult,hate,threat,obscene,toxic categories and the configuration length must be less than 8 characters. Also, provide the recommended configuration reason, why it is recommended? If it's accepted no recommendation needed. Note : Strictly Follow the condition number 2 """},
+            {"role":"system","content":"""Consider a california dmv customer applying new licese plate configuration. Perform below tasks for given configuration:\n1.Please Provide the probability value for each of the categories (profanity as 'P', obscene as 'O', insult as 'I', hate as 'H', toxic as 'To', threat as 'Th').\n2.Deny the configuration if any one of the above categories probability value is greater than 0.3. Otherwise, accept the configuration. """},
 
-            {"role":"user","content":"Given configuration is : 'omfg'"},{"role":"assistant","content":"""{"Category":["Profanity","Obscene","Insult","Hate","Toxic","Threat"],"Probability":[0.9,0.8,0.7,0.5,0.6,0.3],"Reason":["'omfg' is an acronym for 'oh my f***ing god', which is considered profane language.","'omfg' is considered to be an obscene expression.","'omfg' can be used as an insult, depending on the context.","'omfg' is not typically used to express hate, but it could be used in a hateful manner.","'omfg' can be used in a toxic manner, depending on the context.","'omfg' is not typically used to express a threat."]}
+            {"role":"user","content":"Given configuration is : 'omfg'"},{"role":"assistant","content":"""{"Category":["P","O","I","H","To","Th"],"Probability":[0.9,0.8,0.7,0.5,0.6,0.3],"Reason":["'omfg' is an acronym for 'oh my f***ing god', which is considered profane language.","'omfg' is considered to be an obscene expression.","'omfg' can be used as an insult, depending on the context.","'omfg' is not typically used to express hate, but it could be used in a hateful manner.","'omfg' can be used in a toxic manner, depending on the context.","'omfg' is not typically used to express a threat."]}
     {"Conclusion": ["Denied"],"Conclusion Reason":["The configuration 'OMFG' is DENIED as the probability value of Profanity is greater than or equal to 0.3"],"Recommended Configuration":["LUVU2"],"Recommendation Reason":["The configuration 'LUVU2' is a combination of two words 'love you too' which is a positive expression and does not represent/fall any of the profanity,insult,hate,threat,obscene,toxic categories and the configuration length is less than 8 characters."]}
     """},
 
-    {"role":"user","content":"Given configuration is : '2ANKH'"},{"role":"assistant","content":"""{"Category":["Profanity","Obscene","Insult","Hate","Toxic","Threat"],"Probability":[0.0,0.0,0.1,0.0,0.0,0.0],"Reason":["'2ANKH' is not a profane word.","'2ANKH' is not an obscene word.","'2ANKH' is not an insult, but it could be interpreted as insulting depending on the context.","'2ANKH' is not a hateful word.","'2ANKH' is not a toxic word.","'2ANKH' is not a threatening word."]}
+    {"role":"user","content":"Given configuration is : '2ANKH'"},{"role":"assistant","content":"""{"Category":["P","O","I","H","To","Th"],"Probability":[0.0,0.0,0.1,0.0,0.0,0.0],"Reason":["'2ANKH' is not a profane word.","'2ANKH' is not an obscene word.","'2ANKH' is not an insult, but it could be interpreted as insulting depending on the context.","'2ANKH' is not a hateful word.","'2ANKH' is not a toxic word.","'2ANKH' is not a threatening word."]}
     {"Conclusion": ["Accepted"],"Conclusion Reason":["N/A"],"Recommended Configuration":["N/A"],"Recommendation Reason":["N/A"]}
     """},
 
-    {"role":"user","content":"Given configuration is : 'motor'"},{"role":"assistant","content":"""{"Category":["Profanity","Obscene","Insult","Hate","Toxic","Threat"],"Probability":[0.0,0.0,0.0,0.0,0.0,0.0],"Reason":["'motor' is not considered profane language.","'motor' is not considered to be an obscene expression.","'motor' is not typically used as an insult.","'motor' is not associated with hate speech and discrimination.","'motor' is not typically used in a toxic manner.","'motor' is not typically used to express a threat."]}
+    {"role":"user","content":"Given configuration is : 'motor'"},{"role":"assistant","content":"""{"Category":["P","O","I","H","To","Th"],"Probability":[0.0,0.0,0.0,0.0,0.0,0.0],"Reason":["'motor' is not considered profane language.","'motor' is not considered to be an obscene expression.","'motor' is not typically used as an insult.","'motor' is not associated with hate speech and discrimination.","'motor' is not typically used in a toxic manner.","'motor' is not typically used to express a threat."]}
     {"Conclusion": ["Accepted"],"Conclusion Reason":["N/A"],"Recommended Configuration":["N/A"],"Recommendation Reason":["N/A"]}
     """},
 
     {"role":"user","content":"Given configuration is :'"+vAR_input_config+"'"}],
 
         temperature=0,
-        max_tokens=500,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0.9,
+        max_tokens=400,
+        seed=10
 
     )
         print('azure gpt raw response - ',response)
+
         if response.choices[0].finish_reason=="content_filter":
-            return """{"Category":["Profanity","Obscene","Insult","Hate","Toxic","Threat"],"Probability":[0.4,0.4,0.4,0.4,0.4,0.4],"Reason":["The given configuration violates azure open ai content filter ploicy.","The given configuration violates azure open ai content filter ploicy.","The given configuration violates azure open ai content filter ploicy.","The given configuration violates azure open ai content filter ploicy.","The given configuration violates azure open ai content filter ploicy.","The given configuration violates azure open ai content filter ploicy."]}
-    {"Conclusion": ["Denied"],"Conclusion Reason":["The given configuration is DENIED as the probability value of Profanity is greater than or equal to 0.3"],"Recommended Configuration":["HPYLYF"],"Recommendation Reason":["The configuration 'HPYLYF' is a combination of two words 'happy life' which is a positive expression and does not represent/fall any of the profanity,insult,hate,threat,obscene,toxic categories and the configuration length is less than 8 characters."]}"""
-            # raise Exception("Response Filtered by content_filter by azure openai")
-    #     if 'content' not in response['choices'][0]['message']:
-    #         return """{"Category":["Profanity","Obscene","Insult","Hate","Toxic","Threat"],"Probability":[0.0,0.0,0.0,0.0,0.0,0.0],"Reason":["None","None","None","None","None","None"]}
+            raise Exception("Response Filtered by content_filter by azure openai")
+        # if 'content' not in response['choices'][0]['message']:
+        #     return """{"Category":["Profanity","Obscene","Insult","Hate","Toxic","Threat"],"Probability":[0.0,0.0,0.0,0.0,0.0,0.0],"Reason":["None","None","None","None","None","None"]}
     # {"Conclusion": ["Accepted"],"Conclusion Reason":["N/A"],"Recommended Configuration":["N/A"],"Recommendation Reason":["N/A"]}"""
         print('azure gpt response - ',response.choices[0].message.content)
 
@@ -76,7 +73,7 @@ def ELP_Recommendation(vAR_input):
 
         print('GPT model error in config - ',vAR_input_config)
         print('GPTError - ',str(e))
-        raise Exception(str(e))
+        raise Exception("GPTError - "+str(e))
 
     #     return """{"Category":["Profanity","Obscene","Insult","Hate","Toxic","Threat"],"Probability":[0.0,0.0,0.0,0.0,0.0,0.0],"Reason":["None","None","None","None","None","None"]}
     # {"Conclusion": ["Accepted"],"Conclusion Reason":["N/A"],"Recommended Configuration":["N/A"],"Recommendation Reason":["N/A"]}"""

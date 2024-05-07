@@ -214,7 +214,7 @@ def ProcessPartialOrders(request):
 
                     PostProcessingReport(vAR_partial_file_date,vAR_partial_file_name)
                     UpdateMetadataTable(vAR_partial_file_date,vAR_partial_file_name)
-                print("vAR_partial_file_flag - ",vAR_partial_file_flag)
+
                 vAR_process_end_time = datetime.datetime.now().replace(microsecond=0)
                 vAR_total_processing_time = vAR_process_end_time-vAR_process_start_time
 

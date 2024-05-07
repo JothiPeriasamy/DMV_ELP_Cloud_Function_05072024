@@ -171,46 +171,12 @@ def ReadPartialResponseTable(vAR_partial_file_date,vAR_partial_file_name):
     vAR_response_table_name = "DMV_ELP_MLOPS_RESPONSE"
     # RUN_ID no need in where clause. Because,request file name will be unique for respective response records
     vAR_sql =(
-        """SELECT
-  * EXCEPT(result,res)
-FROM (
-  SELECT
-    *,
-    ROW_NUMBER() OVER(PARTITION BY LICENSE_PLATE_CONFIG ORDER BY result, MODEL)AS res
-  FROM (
-    SELECT
-      *,
-      MAX(RECOMMENDATION) OVER(PARTITION BY RECOMMENDATION) AS result
-    FROM
-      `{}.{}.{}`
+        """
+        SELECT * FROM `{}.{}.{}`
+WHERE
+      DATE(created_dt)=CURRENT_DATE() and MODEL IS NOT NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}'
+""".format(os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name)
     )
-  WHERE
-    MODEL IS NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}'
-  UNION ALL
-  SELECT
-    *
-  FROM (
-    SELECT
-      *,
-      ROW_NUMBER() OVER(PARTITION BY LICENSE_PLATE_CONFIG ORDER BY result, MODEL DESC)AS res
-    FROM (
-      SELECT
-        *,
-        MAX(RECOMMENDATION) OVER(PARTITION BY RECOMMENDATION) AS result
-      FROM
-        `{}.{}.{}`
-      )
-    WHERE
-      MODEL IS NOT NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}')
-  WHERE
-    res=2 )
-ORDER BY
-  PLATE_TYPE_COUNT DESC,
-  LICENSE_PLATE_DESC ASC,
-  LICENSE_PLATE_CONFIG ASC
-""".format(os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name,os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name)
-    )
-
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()
     return vAR_df
 
@@ -220,52 +186,19 @@ def ReadResponseTable(vAR_partial_file_date,vAR_partial_file_name):
     vAR_response_table_name = "DMV_ELP_MLOPS_RESPONSE"
     # RUN_ID no need in where clause. Because,request file name will be unique for respective response records
     vAR_sql =(
-        """SELECT
-  * EXCEPT(result,res)
-FROM (
-  SELECT
-    *,
-    ROW_NUMBER() OVER(PARTITION BY LICENSE_PLATE_CONFIG ORDER BY result, MODEL)AS res
-  FROM (
-    SELECT
-      *,
-      MAX(RECOMMENDATION) OVER(PARTITION BY RECOMMENDATION) AS result
-    FROM
-      `{}.{}.{}`
-    WHERE
-      DATE(created_dt)=CURRENT_DATE())
-  WHERE
-    MODEL IS NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}'
-  UNION ALL
-  SELECT
-    *
-  FROM (
-    SELECT
-      *,
-      ROW_NUMBER() OVER(PARTITION BY LICENSE_PLATE_CONFIG ORDER BY result, MODEL DESC)AS res
-    FROM (
-      SELECT
-        *,
-        MAX(RECOMMENDATION) OVER(PARTITION BY RECOMMENDATION) AS result
-      FROM
-        `{}.{}.{}`
-      WHERE
-        DATE(created_dt)=CURRENT_DATE())
-    WHERE
-      MODEL IS NOT NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}')
-  WHERE
-    res=2 )
-ORDER BY
-  PLATE_TYPE_COUNT DESC,
-  LICENSE_PLATE_DESC ASC,
-  LICENSE_PLATE_CONFIG ASC
-""".format(os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name,os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name)
+        """
+        SELECT * FROM `{}.{}.{}`
+WHERE
+      DATE(created_dt)=CURRENT_DATE() and MODEL IS NOT NULL AND REQUEST_DATE='{}' AND lower(REQUEST_FILE_NAME) like '%{}'
+""".format(os.environ["GCP_PROJECT_ID"],os.environ["GCP_BQ_SCHEMA_NAME"],vAR_response_table_name,vAR_partial_file_date,vAR_partial_file_name)
     )
+
+    print('response file query - ',vAR_sql)
 
     vAR_df = vAR_client.query(vAR_sql).to_dataframe()
 
     #  Remove Duplicate If there's any
-    vAR_newdf = vAR_df.drop_duplicates(subset = ['LICENSE_PLATE_CONFIG','ORDER_PAYMENT_DATE'],keep = 'last').reset_index(drop = True)
+    vAR_newdf = vAR_df.drop_duplicates(subset = ['LICENSE_PLATE_CONFIG'],keep = 'last').reset_index(drop = True)
     return vAR_newdf
 
 
